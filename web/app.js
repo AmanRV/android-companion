@@ -1,83 +1,203 @@
 (() => {
   'use strict';
   const $ = id => document.getElementById(id);
-  const cpuHistory = [], gpuHistory = [];
-  const status = $('connection');
-  const number = (value, suffix) => value == null ? '--<small>' + suffix + '</small>' : Math.round(value) + '<small>' + suffix + '</small>';
-  const ring = (id, value, color, track) => { $(id).style.background = `radial-gradient(closest-side,#101b21 79%,transparent 81%),conic-gradient(${color} ${value || 0}%,${track} 0%)`; };
-  const bars = $('ram-bars');
-  for (let i = 0; i < 16; i++) bars.appendChild(document.createElement('i'));
-  function graph(id, values) {
-    const path = $(id).querySelector('path');
-    path.setAttribute('d', values.map((v, i) => `${i ? 'L' : 'M'}${(i / 29 * 300).toFixed(1)},${(68 - Math.max(0, Math.min(100, v)) * .65).toFixed(1)}`).join(' '));
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+  const layouts = ['standard', 'gpu', 'memory', 'fps'];
+  let layout = layouts.includes(localStorage.getItem('layout')) ? localStorage.getItem('layout') : 'standard';
+  let mode = 'monitor';
+  let requestRunning = false;
+  let animationFrame = 0;
+  let diskSignature = '';
+  const metrics = Object.fromEntries(['cpu', 'gpu', 'ram', 'vram', 'fps'].map(id => [id, {
+    current: null, from: null, target: null, start: 0, history: [], pending: null, shown: ''
+  }]));
+  const duration = 1700;
+
+  function setMode(next) {
+    mode = next;
+    document.body.classList.toggle('scenes-active', next === 'scenes');
+    $('monitor-pane').hidden = next !== 'monitor';
+    $('scenes-pane').hidden = next !== 'scenes';
+    $('monitor-tab').classList.toggle('selected', next === 'monitor');
+    $('scenes-tab').classList.toggle('selected', next === 'scenes');
+    if (window.SceneViewer) window.SceneViewer.setVisible(next === 'scenes');
+    else if (next === 'scenes') {
+      $('scene-stage').dataset.loading = 'loading scenes';
+      import('/scenes.js').catch(() => { $('scene-stage').dataset.loading = 'scenes unavailable'; });
+    }
+    if (next === 'monitor') poll();
+    else if (animationFrame) { cancelAnimationFrame(animationFrame); animationFrame = 0; }
+  }
+  $('monitor-tab').addEventListener('click', () => setMode('monitor'));
+  $('scenes-tab').addEventListener('click', () => setMode('scenes'));
+
+  function applyLayout() {
+    document.body.classList.remove('layout-gpu', 'layout-memory', 'layout-fps');
+    if (layout !== 'standard') document.body.classList.add('layout-' + layout);
+    $('layout').textContent = `[layout: ${layout}]`;
+    localStorage.setItem('layout', layout);
+  }
+  $('layout').addEventListener('click', () => {
+    layout = layouts[(layouts.indexOf(layout) + 1) % layouts.length];
+    applyLayout();
+  });
+  applyLayout();
+
+  $('fullscreen').addEventListener('click', async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else {
+        await document.documentElement.requestFullscreen();
+        try { await screen.orientation.lock('landscape'); } catch (_) { /* Rotate manually if needed. */ }
+      }
+    } catch (_) { $('fullscreen').title = 'Fullscreen is unavailable in this browser'; }
+  });
+
+  function makePath(points) {
+    if (!points.length) return '';
+    let path = `M${points[0].x.toFixed(1)},${points[0].y.toFixed(1)}`;
+    for (let i = 1; i < points.length; i++) {
+      const a = points[i - 1], b = points[i], mid = (a.x + b.x) / 2;
+      path += ` C${mid.toFixed(1)},${a.y.toFixed(1)} ${mid.toFixed(1)},${b.y.toFixed(1)} ${b.x.toFixed(1)},${b.y.toFixed(1)}`;
+    }
+    return path;
+  }
+  function drawGraph(id, state, progress = 1) {
+    const graph = $(id + '-graph');
+    if (!graph) return;
+    const values = state.history.slice();
+    if (state.pending != null) values.push(state.current);
+    const offset = state.pending != null ? 10 * (1 - progress) : 0;
+    const points = values.map((value, i) => ({
+      x: 300 - (values.length - 1 - i) * 10 + offset,
+      y: 30 - Math.max(0, Math.min(100, value)) * .28
+    }));
+    graph.querySelector('path').setAttribute('d', makePath(points));
+  }
+  function finishPending(state) {
+    if (state.pending == null) return;
+    state.history.push(state.pending);
+    if (state.history.length > 30) state.history.shift();
+    state.pending = null;
+  }
+  function tick(now) {
+    animationFrame = 0;
+    if (document.hidden || mode !== 'monitor') return;
+    let active = false;
+    for (const [id, state] of Object.entries(metrics)) {
+      if (state.pending == null) continue;
+      const t = Math.min(1, (now - state.start) / duration);
+      const eased = t * (2 - t);
+      state.current = state.from + (state.target - state.from) * eased;
+      const shown = String(Math.round(state.current));
+      if (shown !== state.shown) { $(id).textContent = shown; state.shown = shown; }
+      drawGraph(id, state, t);
+      if (t === 1) { finishPending(state); drawGraph(id, state); }
+      else active = true;
+    }
+    if (active) animationFrame = requestAnimationFrame(tick);
+  }
+  function setMetric(id, value) {
+    const state = metrics[id], element = $(id);
+    if (!Number.isFinite(value)) {
+      finishPending(state);
+      state.current = state.from = state.target = null;
+      state.shown = '--'; element.textContent = '--';
+      return;
+    }
+    if (state.target == null) {
+      state.current = state.from = state.target = value;
+      state.history.push(value);
+      state.shown = String(Math.round(value)); element.textContent = state.shown;
+      drawGraph(id, state);
+      return;
+    }
+    finishPending(state);
+    if (reduced.matches || mode !== 'monitor' || Math.abs(value - state.current) < .05) {
+      state.current = state.from = state.target = value;
+      state.history.push(value);
+      if (state.history.length > 30) state.history.shift();
+      state.shown = String(Math.round(value)); element.textContent = state.shown;
+      drawGraph(id, state);
+      return;
+    }
+    state.from = state.current;
+    state.target = value;
+    state.start = performance.now();
+    state.pending = value;
+    element.animate([
+      { transform: 'translateY(4px) rotateX(-14deg)', opacity: .72 },
+      { transform: 'translateY(0) rotateX(0)', opacity: 1 }
+    ], { duration: 340, easing: 'ease-out' });
+    if (!animationFrame) animationFrame = requestAnimationFrame(tick);
+  }
+
+  const temperature = (id, value) => { $(id).textContent = Number.isFinite(value) ? `${Math.round(value)}°c` : 'n/a'; };
+  const space = gib => gib >= 1024 ? `${(gib / 1024).toFixed(1)} TiB` : `${gib.toFixed(1)} GiB`;
+  function renderDisks(disks) {
+    const signature = JSON.stringify(disks);
+    if (signature === diskSignature) return;
+    diskSignature = signature;
+    const list = $('disks');
+    list.replaceChildren();
+    if (!Array.isArray(disks) || !disks.length) {
+      const empty = document.createElement('div'); empty.className = 'disk-empty';
+      empty.textContent = 'no local volumes available'; list.append(empty); return;
+    }
+    for (const disk of disks) {
+      const row = document.createElement('div'); row.className = 'disk-row';
+      const line = document.createElement('div'); line.className = 'disk-line';
+      const name = document.createElement('strong'); name.textContent = disk.name;
+      const detail = document.createElement('span');
+      detail.textContent = `${Math.round(disk.percent)}% · ${space(disk.usedGiB)} / ${space(disk.totalGiB)}`;
+      line.append(name, detail);
+      const track = document.createElement('div'); track.className = 'disk-track';
+      const fill = document.createElement('i'); fill.style.width = `${Math.max(0, Math.min(100, disk.percent))}%`;
+      track.append(fill); row.append(line, track); list.append(row);
+    }
   }
   function update(s) {
-    const age = Date.now() - Date.parse(s.time);
-    if (!Number.isFinite(age) || age > 8000) throw Error('stale');
-    status.textContent = 'LIVE / USB'; status.classList.add('live');
-    $('cpu').innerHTML = number(s.cpu, '%'); $('gpu').innerHTML = number(s.gpu, '%');
-    $('ram').innerHTML = number(s.ramPercent, '%'); $('fps').innerHTML = number(s.fps, 'FPS');
-    $('cpu-temp').textContent = s.cpuTemp == null ? 'N/A' : `${Math.round(s.cpuTemp)}°C`;
-    $('gpu-temp').textContent = s.gpuTemp == null ? 'N/A' : `${Math.round(s.gpuTemp)}°C`;
-    $('gpu-source').textContent = s.gpuSource;
-    $('ram-detail').textContent = `${s.ramUsedGiB.toFixed(1)} / ${s.ramTotalGiB.toFixed(1)} GiB`;
-    $('fps-source').textContent = s.fps == null ? 'PRESENTMON OPTIONAL' : 'PRESENTMON CSV';
-    $('fps-state').textContent = s.fps == null ? 'STANDBY' : 'ACTIVE';
-    $('updated').textContent = `UPDATED ${new Date(s.time).toLocaleTimeString()}`;
-    ring('cpu-ring', s.cpu, '#80f3db', '#273b40'); ring('gpu-ring', s.gpu, '#b6a0ef', '#303047');
-    [...bars.children].forEach((bar, i) => { bar.classList.toggle('on', i < Math.round(s.ramPercent / 100 * 16)); bar.style.height = `${25 + (i * 17 % 65)}%`; });
-    cpuHistory.push(s.cpu || 0); gpuHistory.push(s.gpu || 0);
-    if (cpuHistory.length > 30) cpuHistory.shift(); if (gpuHistory.length > 30) gpuHistory.shift();
-    graph('cpu-graph', cpuHistory); graph('gpu-graph', gpuHistory);
+    if (!s.time) throw Error('missing sample');
+    $('connection').textContent = 'usb / live';
+    $('hostname').textContent = s.hostName || 'pc';
+    $('cpu-name').textContent = s.cpuName || 'processor';
+    $('gpu-name').textContent = s.gpuName || 'graphics adapter';
+    setMetric('cpu', s.cpu); setMetric('gpu', s.gpu);
+    setMetric('ram', s.ramPercent); setMetric('vram', s.vramPercent);
+    setMetric('fps', s.fps);
+    temperature('cpu-temp', s.cpuTemp); temperature('gpu-temp', s.gpuTemp);
+    $('ram-detail').textContent = `${s.ramUsedGiB.toFixed(1)} / ${s.ramTotalGiB.toFixed(1)} GiB used`;
+    $('vram-detail').textContent = s.vramUsedGiB == null ? 'sensor unavailable' :
+      `${s.vramUsedGiB.toFixed(1)} / ${s.vramTotalGiB.toFixed(1)} GiB used`;
+    renderDisks(s.disks || []);
+    if (s.fpsSource === 'PresentMon CSV') {
+      $('fps-source').textContent = 'PresentMon / per-game capture';
+      $('fps-state').textContent = s.fps == null ? 'waiting for capture' : 'recent frame average';
+    } else if (s.fpsSource === 'AMD display FPS') {
+      $('fps-source').textContent = 'AMD display / all apps';
+      $('fps-state').textContent = s.fps == null ? 'no active frames detected' : 'display average, not per-game';
+    } else {
+      $('fps-source').textContent = 'no frame source';
+      $('fps-state').textContent = 'PresentMon needed for per-game FPS';
+    }
+    $('updated').textContent = 'updated just now';
   }
   async function poll() {
-    if (document.hidden) return;
+    if (requestRunning || document.hidden || mode !== 'monitor') return;
+    requestRunning = true;
     try {
       const response = await fetch('/api/stats', { cache: 'no-store' });
       if (!response.ok) throw Error('offline');
       update(await response.json());
-    } catch (_) { status.textContent = 'WAITING FOR USB'; status.classList.remove('live'); $('updated').textContent = 'RECONNECTING'; }
+    } catch (_) {
+      $('connection').textContent = 'usb / waiting';
+      $('updated').textContent = 'reconnecting';
+    } finally { requestRunning = false; }
   }
-  poll(); setInterval(poll, 2000);
-  setInterval(() => { if (!document.hidden) $('clock').textContent = new Date().toLocaleTimeString([], { hour12: false }); }, 1000);
-  const layouts = ['standard', 'compact', 'gpu', 'memory'];
-  let layout = layouts.includes(localStorage.getItem('layout')) ? localStorage.getItem('layout') : (localStorage.getItem('compact') === '1' ? 'compact' : 'standard');
-  function applyLayout() {
-    document.body.classList.remove('compact', 'layout-gpu', 'layout-memory');
-    if (layout === 'compact') document.body.classList.add('compact');
-    if (layout === 'gpu') document.body.classList.add('layout-gpu');
-    if (layout === 'memory') document.body.classList.add('layout-memory');
-    $('layout').title = `Layout: ${layout}. Tap to change.`;
-    $('layout').setAttribute('aria-label', `Layout: ${layout}. Tap to change.`);
-    $('layout').querySelector('span').textContent = `LAYOUT ${layouts.indexOf(layout) + 1}/4`;
-    localStorage.setItem('layout', layout);
-  }
-  $('layout').addEventListener('click', () => { layout = layouts[(layouts.indexOf(layout) + 1) % layouts.length]; applyLayout(); });
-  applyLayout();
-  $('fullscreen').addEventListener('click', async () => {
-    try { if (!document.fullscreenElement) { await document.documentElement.requestFullscreen(); try { await screen.orientation.lock('landscape'); } catch (_) {} } else await document.exitFullscreen(); }
-    catch (_) { $('fullscreen').title = 'Use Chrome Add to Home screen for a standalone view'; }
+  poll();
+  setInterval(poll, 2000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && animationFrame) { cancelAnimationFrame(animationFrame); animationFrame = 0; }
+    else if (!document.hidden) poll();
   });
-
-  // Small character grid, six frames per second, no device-pixel-ratio scaling.
-  const canvas = $('wallpaper'), ctx = canvas.getContext('2d', { alpha: false });
-  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
-  let cols = 0, rows = 0, tick = 0, last = 0;
-  function resize() { canvas.width = innerWidth; canvas.height = innerHeight; cols = Math.ceil(innerWidth / 24); rows = Math.ceil(innerHeight / 28); ctx.font = '11px Consolas, monospace'; }
-  addEventListener('resize', resize, { passive: true }); resize();
-  function frame(now) {
-    requestAnimationFrame(frame);
-    if (document.hidden || now - last < (reduced.matches ? 1500 : 165)) return;
-    last = now; tick++;
-    ctx.fillStyle = '#070b10'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    const glyphs = ['·', ':', '+', '×', '○'];
-    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
-      const wave = Math.sin(x * .29 + tick * .08) + Math.cos(y * .34 - tick * .06);
-      if (wave < .45) continue;
-      const n = (x * 17 + y * 31 + Math.floor(tick / 9)) % glyphs.length;
-      ctx.fillStyle = wave > 1.5 ? '#3a7774' : '#255159';
-      ctx.fillText(glyphs[n], x * 24 + 4, y * 28 + 12);
-    }
-  }
-  requestAnimationFrame(frame);
 })();

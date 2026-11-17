@@ -1,81 +1,89 @@
 # Android Companion
 
-A USB-only Windows 11 hardware dashboard for an old Android 11 phone. The Windows side is one .NET Framework executable. The phone uses its existing browser: no APK, account, cloud service, Wi-Fi connection, or app permission to install. The page has no external fonts, libraries, images, or requests.
+A lightweight, USB-only Windows 11 hardware dashboard and animated picture display for an Android 11 phone. The Windows side is one .NET Framework executable; the phone uses its browser. No APK, account, Wi-Fi, Bluetooth, cloud service, external runtime assets, or package manager dependencies.
 
-The visual direction takes inspiration from [ascii.rest](https://ascii.rest/): restrained monospace type, technical labels, and a gentle field of animated characters. The artwork is original and rendered locally at low frame rate.
+The **monitor** is a dark, neutral, full-screen display with six compact tiles, muted hardware names, and layouts you can cycle with **[layout]**. Readings count smoothly toward each new sample and history graphs scroll between samples on the phone; Windows telemetry still runs every 2 seconds. The heading uses the Windows PC hostname at runtime; it is never hardcoded into this public repository.
 
-Tap **LAYOUT** to cycle between standard, compact, GPU-first, and memory-first arrangements. The choice stays on the phone in local browser storage.
+The **scenes** tab contains all 34 animated scenes from [ascii.rest](https://ascii.rest/), copied into this repository under its MIT license. Use **[previous]**, **[next]**, swipe, or **[all scenes]** to choose one. **[pause]** holds a still frame. Your last scene is saved locally in the phone browser. Scenes load only when selected and never request ascii.rest or any other website.
 
 ## Metrics
 
-| Metric | MVP source | Availability |
+| Metric | Source | Notes |
 | --- | --- | --- |
-| CPU load | Windows `GetSystemTimes` | Built in; sampled every 2 seconds |
-| RAM usage | Windows `GlobalMemoryStatusEx` | Built in |
-| GPU 3D load | NVIDIA NVML if available; otherwise Windows WDDM GPU Engine counters | Depends on driver and counter availability; multi-GPU values are approximate |
-| GPU temperature | NVIDIA NVML | NVIDIA cards with supported driver only; otherwise `N/A` |
-| CPU temperature | — | `N/A` in this dependency-free MVP; Windows has no reliable universal CPU package sensor API |
-| Per-game FPS | Optional [Intel PresentMon](https://github.com/GameTechDev/PresentMon) CSV | Requires a separate PresentMon capture; game and graphics API support vary |
+| CPU usage | Windows `GetSystemTimes` | Sampled every 2 seconds |
+| CPU name | Windows registry | Read once at startup |
+| RAM | Windows `GlobalMemoryStatusEx` | Used and total physical memory |
+| GPU name | Windows `Win32_VideoController` | Read once at startup |
+| AMD GPU usage and edge temperature | AMD ADL PMLog from the installed Radeon driver | Tested on Radeon RX 7900 GRE; support depends on card and driver |
+| AMD VRAM | AMD ADL memory info and dedicated VRAM usage | Tested on Radeon RX 7900 GRE |
+| NVIDIA GPU usage and temperature | NVIDIA NVML from the installed driver | Used when available |
+| NVIDIA VRAM | NVIDIA NVML memory info | Driver dependent |
+| Other GPU usage | Windows GPU Engine 3D performance counters | Approximation; multiple engines or GPUs may be combined |
+| Fixed storage volumes | .NET `DriveInfo` | Used and total space; refreshed every 10 seconds |
+| CPU temperature | — | `n/a` until a supported local sensor provider is available |
+| AMD display FPS | AMD ADL frame metrics | No extra app; reports GPU display output across apps, **not** per-game; unverified during a game on the tested PC |
+| Per-game FPS | Optional [Intel PresentMon](https://github.com/GameTechDev/PresentMon) CSV capture | Requires a separate capture; support varies by game and graphics API |
 
-Unknown readings are displayed as `N/A` or `--`, never made up. The FPS card returns to standby when its CSV stops updating.
+Unknown readings show `n/a` or `--`. The AMD display frame counter reports no active frames on the tested desktop; a game may produce a reading, but this has not yet been verified. Accurate per-game FPS needs a present-event capture such as PresentMon. The Windows APIs do not expose a reliable universal CPU package temperature: Microsoft's `Win32_TemperatureProbe.CurrentReading` is not populated, and this PC exposes no ACPI thermal-zone reading. AMD's [Ryzen Master Monitoring SDK](https://www.amd.com/en/developer/ryzen-master-monitoring-sdk.html) and [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) can read CPU sensors, but require additional components or privileges. The app does not install a hardware-access driver by default.
 
 ## Install on Windows 11 and Android 11
 
-1. On Windows, clone this repository. No .NET SDK is required; Windows 11's .NET Framework C# compiler builds the server.
-2. Download **Android SDK Platform-Tools for Windows** from [Google's official page](https://developer.android.com/tools/releases/platform-tools) and extract it. Note the full path to `platform-tools\adb.exe`. Do not add the tools to this repository.
-3. On the phone, enable **Developer options → USB debugging**. Connect by USB, unlock the phone, and accept its USB debugging authorization prompt. A current Chrome browser is recommended.
+1. Clone or download this repository on the Windows PC. Windows 11's .NET Framework C# compiler builds the service; no .NET SDK or Node is needed.
+2. Get [Android SDK Platform-Tools for Windows](https://developer.android.com/tools/releases/platform-tools) and extract it **outside** this repository. Note the path to `adb.exe`.
+3. On the phone, enable **Developer options → USB debugging**. Connect by USB, unlock the phone, and accept the debugging authorization prompt. Chrome is recommended.
 4. In PowerShell, from this repository, run:
 
    ```powershell
    powershell -NoProfile -ExecutionPolicy Bypass -File .\start.ps1 -AdbPath 'C:\path\to\platform-tools\adb.exe'
    ```
 
-5. The script compiles the server, checks for a **USB** ADB device, establishes `adb reverse tcp:8765 tcp:8765`, and opens `http://127.0.0.1:8765/` on the phone. Tap **FULLSCREEN** on the dashboard, then rotate the phone to landscape if needed. The page adapts to portrait, landscape, screen density, and narrow displays. The browser may require a tap before allowing fullscreen; Android may briefly show system bars on edge swipes.
+5. The launcher builds the service, selects a physical USB ADB device, sets up `adb reverse tcp:8765 tcp:8765`, and opens the dashboard on the phone. Tap **[fullscreen]** for immersive display. Rotate the phone to landscape if your browser cannot lock orientation automatically.
 
-Leave PowerShell open. It restores the reverse link after USB reconnects. Press Ctrl+C to stop it. On the PC, the same page is available at `http://127.0.0.1:8765/` for a quick check.
-
-If the phone shows `unauthorized`, unlock it and accept the debugging prompt, then retry. If Windows does not detect the phone, try a data-capable cable and install the phone maker's USB driver. If port 8765 is already in use, stop the other process using it.
+Leave PowerShell open for automatic USB reconnection. Press Ctrl+C to stop. The page is also available on the PC at `http://127.0.0.1:8765/`. If ADB reports `unauthorized`, unlock the phone and accept its prompt. A data-capable cable and the phone maker's USB driver may be needed.
 
 ## Optional game FPS
 
-Download PresentMon from its [official GitHub releases](https://github.com/GameTechDev/PresentMon/releases). Start a capture in a separate terminal, replacing the executable name and paths:
+Download PresentMon from its [official releases](https://github.com/GameTechDev/PresentMon/releases). In a separate terminal, run a capture with the executable name and a local CSV path:
 
 ```powershell
 & 'C:\path\to\PresentMon.exe' --process_name game.exe --output_file "$env:TEMP\companion-fps.csv"
 ```
 
-Then start Android Companion with the same file and exact game executable name:
+Then launch Android Companion with the same file and process name:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\start.ps1 -AdbPath 'C:\path\to\platform-tools\adb.exe' -FpsCsv "$env:TEMP\companion-fps.csv" -Game 'game.exe'
 ```
 
-The monitor reads recent frame intervals from PresentMon's CSV and displays their rolling average. PresentMon may require administrator access or membership in **Performance Log Users** to capture ETW events. This optional capture has its own overhead; keep it off when FPS is not needed. The monitor never launches a game or PresentMon itself.
+PresentMon may need administrator access or Performance Log Users membership for ETW capture. Its separate capture has additional overhead; leave it off when per-game FPS is not needed. Android Companion never launches PresentMon or a game. The built-in AMD display FPS reading works independently when the driver supports it, but it cannot identify a game's frames.
 
 ## Security and resource use
 
-- The HTTP server binds only `127.0.0.1:8765`. The phone reaches it through USB ADB reverse, using `adb -d` to select a physical USB device. There is no LAN listener or outbound request in the application.
-- The server accepts only GET requests for three fixed local assets and `/api/stats`. It exposes no command, file upload, configuration write, or filesystem browsing endpoint. A Content Security Policy blocks remote assets.
-- Telemetry is sampled once every 2 seconds. The browser polls once every 2 seconds, pauses polling when hidden, and paints the ASCII wallpaper at at most about 6 frames per second, or less when reduced motion is requested. Rendering uses a small canvas at CSS pixel resolution and no GPU-heavy effects.
-- Browser layout preference is saved only in local browser storage. Generated executables, local tools, CSV captures, logs, and local config files are ignored by Git.
-- USB debugging gives the authorized PC broad access to the phone. Revoke the PC's USB debugging authorization in Android Developer options when you no longer trust that PC.
+- The HTTP service binds only `127.0.0.1:8765`. ADB reverse carries traffic over USB. The application makes no outbound requests.
+- The service accepts GET only for the stats endpoint and a fixed allowlist of local assets. It has no command, upload, write, or arbitrary file endpoint. A Content Security Policy allows only same-origin resources.
+- Stats are sampled and fetched every 2 seconds; fixed-drive capacity is refreshed every 10 seconds. Smooth number and graph motion runs only in the phone browser between real samples. Browser polling pauses when hidden or in scenes mode. The scene renderer uses an optimized canvas, caps animation at 10 fps, and stops when its tab is hidden or monitor mode is selected.
+- Layout and scene preferences stay in the phone browser. Generated executables, local tools, logs, and captures are ignored by Git.
+- USB debugging gives an authorized PC broad access to the phone. Revoke its authorization in Android Developer options if that PC is no longer trusted.
 
-## Development
+## Development and provenance
 
-Run `powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1`, then `.\bin\Monitor.exe`. The source uses only Windows and .NET Framework APIs. The UI is plain HTML, CSS, and JavaScript. There are no package manager dependencies or build-time downloads.
+Run `powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1`, then `.\bin\Monitor.exe`. The UI is plain HTML, CSS, and JavaScript.
+
+Scene source and the original license are under `vendor/ascii-source/`; browser-ready local modules are under `web/vendor/ascii/`. They were copied from [bas3line/ascii](https://github.com/bas3line/ascii) at commit `9ba5ab1` (MIT). To regenerate them for development, clone that project locally and run `node scripts/vendor-scenes.mjs <path-to-ascii-checkout>` with Node 24+. Node is unnecessary for installing or running this app. See [third-party notices](THIRD_PARTY_NOTICES.md).
+
+The project itself is MIT licensed; see [LICENSE](LICENSE).
 
 ## Limitations
 
-The MVP has no Android APK or automatic launch at phone boot; the Windows script opens the browser when USB first connects. Browser fullscreen and landscape lock depend on browser support and can be exited with Android gestures. CPU temperature and non-NVIDIA GPU temperature need a supported hardware sensor library or vendor integration in a future release. The GPU Engine fallback is 3D utilization, not an exact all-engine total. PresentMon CSV is required for real game FPS.
+There is no APK or automatic launch at phone boot. Browser fullscreen and landscape lock depend on browser support. CPU temperature requires an optional sensor integration that is not included. AMD/NVIDIA readings depend on installed drivers. The fallback Windows GPU counter is a 3D approximation. The AMD FPS fallback covers display output rather than a specific game; accurate per-game FPS requires PresentMon CSV or another present-event capture.
 
-## Research sources
+## Research
 
+- [AMD ADL PMLog API](https://gpuopen-librariesandsdks.github.io/adl/group__OVERDRIVE8API.html)
+- [AMD ADL VRAM APIs](https://gpuopen-librariesandsdks.github.io/adl/group__ADAPTERMAINAPI.html)
+- [AMD ADL display frame metrics](https://gpuopen-librariesandsdks.github.io/adl/group__PERFORMANCEAPI.html)
+- [NVIDIA NVML device memory API](https://docs.nvidia.com/deploy/nvml-api/latest/api/group__nvmlDeviceQueries.html)
 - [Windows memory API](https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-globalmemorystatusex)
-- [Windows GPU engine performance counters](https://learn.microsoft.com/en-us/windows/win32/direct3dtools/pix/articles/timing-captures/pix-timing-captures)
-- [LibreHardwareMonitor sensor coverage and privilege requirements](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) — a candidate for broader temperature support; recent versions removed its WMI export, so it is not used here
-- [PresentMon console capture and CSV options](https://github.com/GameTechDev/PresentMon/blob/main/README-ConsoleApplication.md)
+- [Microsoft's unpopulated temperature probe reading](https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-temperatureprobe)
+- [PresentMon console capture](https://github.com/GameTechDev/PresentMon/blob/main/README-ConsoleApplication.md)
 - [Android immersive mode](https://developer.android.com/develop/ui/views/layout/immersive)
-
-## License
-
-MIT. See [LICENSE](LICENSE).

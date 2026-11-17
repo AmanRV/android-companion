@@ -3,36 +3,38 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#070b10">
-  <title>ANDROID // COMPANION</title>
+  <meta name="theme-color" content="#111214">
+  <title>android companion</title>
   <link rel="stylesheet" href="/app.css">
   <script src="/app.js" defer></script>
 </head>
 <body>
-  <canvas id="wallpaper" aria-hidden="true"></canvas>
-  <main class="shell">
-    <header class="topbar">
-      <div class="brand"><span class="brand-mark">[<b>+</b>]</span><span>ANDROID<span class="muted">//</span>COMPANION</span></div>
-      <div class="top-right"><span id="clock">--:--:--</span><span class="separator">/</span><span id="connection" class="status"><i></i>CONNECTING</span></div>
+  <main class="app">
+    <header class="bar">
+      <div class="brand">android companion</div>
+      <nav class="modes" aria-label="Display mode"><button id="monitor-tab" class="selected" type="button">[monitor]</button><button id="scenes-tab" type="button">[scenes]</button></nav>
+      <div class="bar-right"><span id="connection">connecting</span><button id="fullscreen" type="button">[fullscreen]</button></div>
     </header>
 
-    <section class="intro">
-      <div class="eyebrow"><span class="accent">01</span> / SYSTEM TELEMETRY <span class="hairline"></span> USB LINK</div>
-      <div class="intro-row"><div><h1>System<span class="accent">.</span>status</h1><p>Live hardware telemetry, directly from your PC.</p></div>
-        <div class="actions"><button id="layout" type="button" title="Switch layout">▦ <span>LAYOUT</span></button><button id="fullscreen" type="button" title="Fullscreen">⛶ <span>FULLSCREEN</span></button></div>
+    <section id="monitor-pane" class="pane monitor-pane" aria-label="PC monitor">
+      <div class="pane-heading"><div><div class="eyebrow">pc / live statistics</div><h1 id="hostname">pc</h1></div><span id="updated">waiting for data</span></div>
+      <div class="grid" id="dashboard">
+        <article class="tile cpu"><div class="tile-heading">cpu usage</div><div class="model" id="cpu-name">processor</div><div class="reading"><span class="value" id="cpu">--</span><span class="unit">%</span></div><div class="tile-foot"><div>temperature <strong id="cpu-temp">n/a</strong></div><svg id="cpu-graph" viewBox="0 0 300 32" preserveAspectRatio="none" role="img" aria-label="CPU history"><path></path></svg></div></article>
+        <article class="tile gpu"><div class="tile-heading">gpu usage</div><div class="model" id="gpu-name">graphics adapter</div><div class="reading"><span class="value" id="gpu">--</span><span class="unit">%</span></div><div class="tile-foot"><div>temperature <strong id="gpu-temp">n/a</strong></div><svg id="gpu-graph" viewBox="0 0 300 32" preserveAspectRatio="none" role="img" aria-label="GPU history"><path></path></svg></div></article>
+        <article class="tile ram"><div class="tile-heading">memory usage</div><div class="model">physical ram</div><div class="reading"><span class="value" id="ram">--</span><span class="unit">%</span></div><div class="tile-foot"><div id="ram-detail">-- / -- GiB used</div><svg id="ram-graph" viewBox="0 0 300 32" preserveAspectRatio="none" role="img" aria-label="RAM history"><path></path></svg></div></article>
+        <article class="tile vram"><div class="tile-heading">video memory</div><div class="model">dedicated gpu vram</div><div class="reading"><span class="value" id="vram">--</span><span class="unit">%</span></div><div class="tile-foot"><div id="vram-detail">-- / -- GiB used</div><svg id="vram-graph" viewBox="0 0 300 32" preserveAspectRatio="none" role="img" aria-label="VRAM history"><path></path></svg></div></article>
+        <article class="tile storage"><div class="tile-heading">storage volumes</div><div class="model">fixed local drives / free space</div><div class="disk-list" id="disks"><div class="disk-empty">waiting for volumes</div></div></article>
+        <article class="tile fps"><div class="tile-heading">frame rate</div><div class="model" id="fps-source">checking frame source</div><div class="reading"><span class="value" id="fps">--</span><span class="unit">fps</span></div><div class="tile-foot"><div id="fps-state">waiting for frames</div><div>optional</div></div></article>
       </div>
     </section>
 
-    <section class="dashboard" id="dashboard" aria-label="Hardware statistics">
-      <article class="metric cpu"><div class="card-top"><span>01 / PROCESSOR</span><span class="tiny-icon">[ CPU ]</span></div><div class="metric-main"><div><div class="big" id="cpu">--<small>%</small></div><div class="metric-label">CPU UTILIZATION</div></div><div class="ring" id="cpu-ring"><span>CORE<br>LOAD</span></div></div><div class="card-footer"><span>PACKAGE TEMP</span><strong id="cpu-temp">N/A</strong></div></article>
-      <article class="metric gpu"><div class="card-top"><span>02 / GRAPHICS</span><span class="tiny-icon">[ GPU ]</span></div><div class="metric-main"><div><div class="big" id="gpu">--<small>%</small></div><div class="metric-label">GPU UTILIZATION</div></div><div class="ring violet" id="gpu-ring"><span>3D<br>LOAD</span></div></div><div class="card-footer"><span>GPU TEMP <em id="gpu-source"></em></span><strong id="gpu-temp">N/A</strong></div></article>
-      <article class="metric ram"><div class="card-top"><span>03 / MEMORY</span><span class="tiny-icon">[ RAM ]</span></div><div class="metric-main"><div><div class="big" id="ram">--<small>%</small></div><div class="metric-label">MEMORY IN USE</div></div><div class="ram-bars" id="ram-bars" aria-hidden="true"></div></div><div class="card-footer"><span>PHYSICAL MEMORY</span><strong id="ram-detail">-- / -- GiB</strong></div></article>
-      <article class="metric fps"><div class="card-top"><span>04 / FRAME RATE</span><span class="tiny-icon">[ FPS ]</span></div><div class="metric-main"><div><div class="big" id="fps">--<small>FPS</small></div><div class="metric-label">GAME PERFORMANCE</div></div><div class="fps-glyph">▧</div></div><div class="card-footer"><span id="fps-source">PRESENTMON OPTIONAL</span><strong id="fps-state">STANDBY</strong></div></article>
+    <section id="scenes-pane" class="pane scenes-pane" aria-label="Animated scenes" hidden>
+      <div class="scene-bar"><button id="scene-prev" type="button">[previous]</button><div class="scene-title"><span id="scene-name">scene</span><span id="scene-count">1 / 34</span></div><button id="scene-next" type="button">[next]</button></div>
+      <div id="scene-stage" class="scene-stage"><div id="scene-list" class="scene-list" hidden><div class="scene-list-header"><span>scenes / 34</span><button id="scene-list-close" type="button">[close]</button></div><div id="scene-list-items" class="scene-list-items"></div></div></div>
+      <div class="scene-bottom"><button id="scene-play" type="button">[pause]</button><span>swipe to change scene</span><button id="scene-picker" type="button">[all scenes]</button></div>
     </section>
 
-    <section class="graphs"><article class="graph"><div class="graph-heading"><div><span class="dot cyan"></span> CPU HISTORY</div><span>LAST 60 SECONDS</span></div><svg id="cpu-graph" viewBox="0 0 300 70" preserveAspectRatio="none" aria-label="CPU history"><path></path></svg><div class="axis"><span>60S AGO</span><span>NOW</span></div></article><article class="graph"><div class="graph-heading"><div><span class="dot purple"></span> GPU HISTORY</div><span>LAST 60 SECONDS</span></div><svg id="gpu-graph" viewBox="0 0 300 70" preserveAspectRatio="none" aria-label="GPU history"><path></path></svg><div class="axis"><span>60S AGO</span><span>NOW</span></div></article></section>
-
-    <footer><span><span class="accent">●</span> LOCAL ONLY <span class="dim">//</span> ADB REVERSE <span class="dim">//</span> READ ONLY</span><span id="updated">AWAITING SIGNAL</span></footer>
+    <footer class="footer"><button id="layout" type="button">[layout: standard]</button><span>usb only / read only</span></footer>
   </main>
 </body>
 </html>
