@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#070b10">
+  <title>ANDROID // COMPANION</title>
+  <link rel="stylesheet" href="/app.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <canvas id="wallpaper" aria-hidden="true"></canvas>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">[<b>+</b>]</span><span>ANDROID<span class="muted">//</span>COMPANION</span></div>
+      <div class="top-right"><span id="clock">--:--:--</span><span class="separator">/</span><span id="connection" class="status"><i></i>CONNECTING</span></div>
+    </header>
+
+    <section class="intro">
+      <div class="eyebrow"><span class="accent">01</span> / SYSTEM TELEMETRY <span class="hairline"></span> USB LINK</div>
+      <div class="intro-row"><div><h1>System<span class="accent">.</span>status</h1><p>Live hardware telemetry, directly from your PC.</p></div>
+        <div class="actions"><button id="layout" type="button" title="Switch layout">▦ <span>LAYOUT</span></button><button id="fullscreen" type="button" title="Fullscreen">⛶ <span>FULLSCREEN</span></button></div>
+      </div>
+    </section>
+
+    <section class="dashboard" id="dashboard" aria-label="Hardware statistics">
+      <article class="metric cpu"><div class="card-top"><span>01 / PROCESSOR</span><span class="tiny-icon">[ CPU ]</span></div><div class="metric-main"><div><div class="big" id="cpu">--<small>%</small></div><div class="metric-label">CPU UTILIZATION</div></div><div class="ring" id="cpu-ring"><span>CORE<br>LOAD</span></div></div><div class="card-footer"><span>PACKAGE TEMP</span><strong id="cpu-temp">N/A</strong></div></article>
+      <article class="metric gpu"><div class="card-top"><span>02 / GRAPHICS</span><span class="tiny-icon">[ GPU ]</span></div><div class="metric-main"><div><div class="big" id="gpu">--<small>%</small></div><div class="metric-label">GPU UTILIZATION</div></div><div class="ring violet" id="gpu-ring"><span>3D<br>LOAD</span></div></div><div class="card-footer"><span>GPU TEMP <em id="gpu-source"></em></span><strong id="gpu-temp">N/A</strong></div></article>
+      <article class="metric ram"><div class="card-top"><span>03 / MEMORY</span><span class="tiny-icon">[ RAM ]</span></div><div class="metric-main"><div><div class="big" id="ram">--<small>%</small></div><div class="metric-label">MEMORY IN USE</div></div><div class="ram-bars" id="ram-bars" aria-hidden="true"></div></div><div class="card-footer"><span>PHYSICAL MEMORY</span><strong id="ram-detail">-- / -- GiB</strong></div></article>
+      <article class="metric fps"><div class="card-top"><span>04 / FRAME RATE</span><span class="tiny-icon">[ FPS ]</span></div><div class="metric-main"><div><div class="big" id="fps">--<small>FPS</small></div><div class="metric-label">GAME PERFORMANCE</div></div><div class="fps-glyph">▧</div></div><div class="card-footer"><span id="fps-source">PRESENTMON OPTIONAL</span><strong id="fps-state">STANDBY</strong></div></article>
+    </section>
+
+    <section class="graphs"><article class="graph"><div class="graph-heading"><div><span class="dot cyan"></span> CPU HISTORY</div><span>LAST 60 SECONDS</span></div><svg id="cpu-graph" viewBox="0 0 300 70" preserveAspectRatio="none" aria-label="CPU history"><path></path></svg><div class="axis"><span>60S AGO</span><span>NOW</span></div></article><article class="graph"><div class="graph-heading"><div><span class="dot purple"></span> GPU HISTORY</div><span>LAST 60 SECONDS</span></div><svg id="gpu-graph" viewBox="0 0 300 70" preserveAspectRatio="none" aria-label="GPU history"><path></path></svg><div class="axis"><span>60S AGO</span><span>NOW</span></div></article></section>
+
+    <footer><span><span class="accent">●</span> LOCAL ONLY <span class="dim">//</span> ADB REVERSE <span class="dim">//</span> READ ONLY</span><span id="updated">AWAITING SIGNAL</span></footer>
+  </main>
+</body>
+</html>
