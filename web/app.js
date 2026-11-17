@@ -63,7 +63,7 @@
       const wave = Math.sin(x * .29 + tick * .08) + Math.cos(y * .34 - tick * .06);
       if (wave < .45) continue;
       const n = (x * 17 + y * 31 + Math.floor(tick / 9)) % glyphs.length;
-      ctx.fillStyle = wave > 1.5 ? '#295a5c' : '#19383f';
+      ctx.fillStyle = wave > 1.5 ? '#3a7774' : '#255159';
       ctx.fillText(glyphs[n], x * 24 + 4, y * 28 + 12);
     }
   }

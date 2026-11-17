@@ -5,5 +5,10 @@ tools/
 *.log
 *.csv
 *.local.json
+.env
+.env.*
+*.pem
+*.pfx
+*.key
 .vs/
 .idea/

@@ -27,7 +27,8 @@ internal static class MonitorApp
     sealed class Snapshot
     {
         public string time = DateTime.UtcNow.ToString("o");
-        public double? cpu, gpu, cpuTemp, gpuTemp, fps;
+        public double? cpu, gpu, gpuTemp, fps;
+        public double? cpuTemp = null; // No universal CPU temperature API on Windows.
         public double ramUsedGiB, ramTotalGiB, ramPercent;
         public string gpuSource = "unavailable", fpsSource = "unavailable";
     }
