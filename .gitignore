@@ -12,3 +12,8 @@ tools/
 *.key
 .vs/
 .idea/
+android/.gradle/
+android/app/build/
+android/local.properties
+*.keystore
+*.jks

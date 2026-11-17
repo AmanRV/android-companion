@@ -39,8 +39,14 @@ try {
         if ($connected) {
             & $AdbPath -d reverse tcp:8765 tcp:8765 2>$null | Out-Null
             if ($LASTEXITCODE -eq 0 -and -not $wasConnected) {
-                & $AdbPath -d shell am start -a android.intent.action.VIEW -d 'http://127.0.0.1:8765/' 2>$null | Out-Null
-                Write-Host 'Phone connected. Opened the dashboard over USB.'
+                $installed = & $AdbPath -d shell pm path com.androidcompanion.dashboard 2>$null
+                if ($installed -match '^package:') {
+                    & $AdbPath -d shell am start -n com.androidcompanion.dashboard/.MainActivity 2>$null | Out-Null
+                    Write-Host 'Phone connected. Opened Android Companion over USB.'
+                } else {
+                    & $AdbPath -d shell am start -a android.intent.action.VIEW -d 'http://127.0.0.1:8765/' 2>$null | Out-Null
+                    Write-Host 'Phone connected. Opened the browser dashboard over USB.'
+                }
             }
         } elseif ($wasConnected) { Write-Host 'Phone disconnected. Waiting for USB...' }
         $wasConnected = $connected
