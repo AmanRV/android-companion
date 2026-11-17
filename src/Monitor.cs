@@ -6,6 +6,7 @@ using System.Management;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Web.Script.Serialization;
 using Microsoft.Win32;
@@ -26,6 +27,10 @@ internal static class MonitorApp
     static IntPtr adlContext;
     static bool adlReady;
     static int adlAdapter = -1;
+    static double? adlVramTotalGiB;
+    static bool adlFrameReady;
+    static DateTime nextDiskRefresh = DateTime.MinValue;
+    static DiskSnapshot[] cachedDisks = new DiskSnapshot[0];
     static readonly AdlAlloc AdlAllocator = size => Marshal.AllocHGlobal(size);
     static readonly string HostName = Environment.MachineName.ToLowerInvariant();
     static readonly string CpuName = ReadCpuName();
@@ -40,7 +45,14 @@ internal static class MonitorApp
         public double? cpu, gpu, gpuTemp, fps;
         public double? cpuTemp = null; // No universal CPU temperature API on Windows.
         public double ramUsedGiB, ramTotalGiB, ramPercent;
+        public double? vramUsedGiB, vramTotalGiB, vramPercent;
+        public DiskSnapshot[] disks = new DiskSnapshot[0];
         public string gpuSource = "unavailable", fpsSource = "unavailable";
+    }
+    sealed class DiskSnapshot
+    {
+        public string name;
+        public double usedGiB, totalGiB, percent;
     }
     [StructLayout(LayoutKind.Sequential)] struct FileTime { public uint low, high; public ulong Value { get { return ((ulong)high << 32) | low; } } }
     [StructLayout(LayoutKind.Sequential)] struct MemoryStatus
@@ -49,6 +61,13 @@ internal static class MonitorApp
         public ulong totalPhysical, availablePhysical, totalPageFile, availablePageFile, totalVirtual, availableVirtual, availableExtendedVirtual;
     }
     [StructLayout(LayoutKind.Sequential)] struct NvmlUtilization { public uint gpu, memory; }
+    [StructLayout(LayoutKind.Sequential)] struct NvmlMemory { public ulong total, free, used; }
+    [StructLayout(LayoutKind.Sequential)] struct AdlMemoryInfo2
+    {
+        public long size;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 256)] public byte[] type;
+        public long bandwidth, hyper, invisible, visible;
+    }
     [StructLayout(LayoutKind.Sequential)] struct AdlSensor { public int supported, value; }
     [StructLayout(LayoutKind.Sequential)] struct AdlLog
     {
@@ -63,6 +82,7 @@ internal static class MonitorApp
     [DllImport("nvml.dll", EntryPoint = "nvmlDeviceGetHandleByIndex_v2")] static extern int NvmlGetDevice(uint index, out IntPtr device);
     [DllImport("nvml.dll", EntryPoint = "nvmlDeviceGetUtilizationRates")] static extern int NvmlGetUtilization(IntPtr device, out NvmlUtilization utilization);
     [DllImport("nvml.dll", EntryPoint = "nvmlDeviceGetTemperature")] static extern int NvmlGetTemperature(IntPtr device, uint sensor, out uint temperature);
+    [DllImport("nvml.dll", EntryPoint = "nvmlDeviceGetMemoryInfo")] static extern int NvmlGetMemory(IntPtr device, out NvmlMemory memory);
     [DllImport("atiadlxx.dll", CallingConvention = CallingConvention.Cdecl)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)] static extern int ADL2_Main_Control_Create(AdlAlloc allocator, int connectedAdapters, out IntPtr context);
     [DllImport("atiadlxx.dll", CallingConvention = CallingConvention.Cdecl)]
@@ -71,6 +91,18 @@ internal static class MonitorApp
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)] static extern int ADL2_Adapter_NumberOfAdapters_Get(IntPtr context, out int count);
     [DllImport("atiadlxx.dll", CallingConvention = CallingConvention.Cdecl)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)] static extern int ADL2_New_QueryPMLogData_Get(IntPtr context, int adapter, ref AdlLog output);
+    [DllImport("atiadlxx.dll", CallingConvention = CallingConvention.Cdecl)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)] static extern int ADL2_Adapter_DedicatedVRAMUsage_Get(IntPtr context, int adapter, out int megabytes);
+    [DllImport("atiadlxx.dll", CallingConvention = CallingConvention.Cdecl)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)] static extern int ADL2_Adapter_MemoryInfo2_Get(IntPtr context, int adapter, ref AdlMemoryInfo2 info);
+    [DllImport("atiadlxx.dll", CallingConvention = CallingConvention.Cdecl)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)] static extern int ADL2_Adapter_FrameMetrics_Caps(IntPtr context, int adapter, out int supported);
+    [DllImport("atiadlxx.dll", CallingConvention = CallingConvention.Cdecl)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)] static extern int ADL2_Adapter_FrameMetrics_Start(IntPtr context, int adapter, int source);
+    [DllImport("atiadlxx.dll", CallingConvention = CallingConvention.Cdecl)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)] static extern int ADL2_Adapter_FrameMetrics_Get(IntPtr context, int adapter, int source, out float fps);
+    [DllImport("atiadlxx.dll", CallingConvention = CallingConvention.Cdecl)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)] static extern int ADL2_Adapter_FrameMetrics_Stop(IntPtr context, int adapter, int source);
 
     static int Main(string[] args)
     {
@@ -106,6 +138,7 @@ internal static class MonitorApp
         running = false;
         sampler.Join(2500);
         if (nvmlReady) try { NvmlShutdown(); } catch { }
+        if (adlFrameReady) try { ADL2_Adapter_FrameMetrics_Stop(adlContext, adlAdapter, 0); } catch { }
         if (adlContext != IntPtr.Zero) try { ADL2_Main_Control_Destroy(adlContext); } catch { }
         foreach (var counter in gpuCounters) counter.Dispose();
         return 0;
@@ -128,7 +161,10 @@ internal static class MonitorApp
         else
         {
             string name = path == "/" ? "index.html" : path.TrimStart('/');
-            if (name != "index.html" && name != "app.css" && name != "app.js") { response.StatusCode = 404; response.Close(); return; }
+            bool allowed = name == "index.html" || name == "app.css" || name == "app.js" || name == "scenes.js" ||
+                name == "vendor/ascii/mount.js" || name == "vendor/ascii/width.js" || name == "vendor/ascii/manifest.js" ||
+                Regex.IsMatch(name, @"\Avendor/ascii/pieces/[a-z-]+\.js\z");
+            if (!allowed || !File.Exists(Path.Combine(Web, name))) { response.StatusCode = 404; response.Close(); return; }
             body = File.ReadAllText(Path.Combine(Web, name), Encoding.UTF8);
             contentType = name.EndsWith(".css") ? "text/css; charset=utf-8" : name.EndsWith(".js") ? "text/javascript; charset=utf-8" : "text/html; charset=utf-8";
         }
@@ -144,7 +180,9 @@ internal static class MonitorApp
             try { SampleCpu(snap); } catch { }
             try { SampleRam(snap); } catch { }
             try { SampleGpu(snap); } catch { }
+            try { SampleDisks(snap); } catch { }
             if (fpsCsv != null) try { SampleFps(snap); } catch { }
+            if (!snap.fps.HasValue && adlFrameReady) try { SampleAmdDisplayFps(snap); } catch { }
             lock (Gate) current = snap;
             Thread.Sleep(2000);
         }
@@ -169,17 +207,44 @@ internal static class MonitorApp
         snap.ramUsedGiB = Math.Round((m.totalPhysical - m.availablePhysical) / 1073741824.0, 1);
         snap.ramPercent = Math.Round(100.0 * (m.totalPhysical - m.availablePhysical) / m.totalPhysical, 1);
     }
+    static void SampleDisks(Snapshot snap)
+    {
+        if (DateTime.UtcNow >= nextDiskRefresh)
+        {
+            var disks = new List<DiskSnapshot>();
+            foreach (var drive in DriveInfo.GetDrives())
+            {
+                try
+                {
+                    if (drive.DriveType != DriveType.Fixed || !drive.IsReady || drive.TotalSize <= 0) continue;
+                    double total = drive.TotalSize / 1073741824.0;
+                    double used = (drive.TotalSize - drive.TotalFreeSpace) / 1073741824.0;
+                    disks.Add(new DiskSnapshot { name = drive.Name.TrimEnd(Path.DirectorySeparatorChar), usedGiB = Math.Round(used, 1),
+                        totalGiB = Math.Round(total, 1), percent = Math.Round(100 * used / total, 1) });
+                }
+                catch { }
+            }
+            cachedDisks = disks.ToArray();
+            nextDiskRefresh = DateTime.UtcNow.AddSeconds(10);
+        }
+        snap.disks = cachedDisks;
+    }
     static void SampleGpu(Snapshot snap)
     {
         if (nvmlReady)
         {
-            NvmlUtilization util; uint temp;
+            NvmlUtilization util; NvmlMemory memory; uint temp;
+            if (NvmlGetMemory(nvmlDevice, out memory) == 0 && memory.total > 0)
+                SetVram(snap, memory.used / 1073741824.0, memory.total / 1073741824.0);
             if (NvmlGetUtilization(nvmlDevice, out util) == 0) { snap.gpu = Clamp(util.gpu); snap.gpuSource = "NVIDIA NVML"; }
             if (NvmlGetTemperature(nvmlDevice, 0, out temp) == 0) snap.gpuTemp = temp;
             if (snap.gpu.HasValue || snap.gpuTemp.HasValue) return;
         }
         if (adlReady)
         {
+            int usedMb;
+            if (adlVramTotalGiB.HasValue && ADL2_Adapter_DedicatedVRAMUsage_Get(adlContext, adlAdapter, out usedMb) == 0 && usedMb >= 0)
+                SetVram(snap, usedMb / 1024.0, adlVramTotalGiB.Value);
             var log = NewAdlLog();
             if (ADL2_New_QueryPMLogData_Get(adlContext, adlAdapter, ref log) == 0)
             {
@@ -207,6 +272,20 @@ internal static class MonitorApp
         foreach (var counter in gpuCounters) try { sum += counter.NextValue(); } catch { }
         if (gpuCounters.Count > 0) { snap.gpu = Clamp(sum); snap.gpuSource = "Windows GPU Engine"; }
     }
+    static void SetVram(Snapshot snap, double used, double total)
+    {
+        if (total <= 0 || used < 0 || used > total * 1.2) return;
+        snap.vramUsedGiB = Math.Round(used, 1);
+        snap.vramTotalGiB = Math.Round(total, 1);
+        snap.vramPercent = Math.Round(100 * used / total, 1);
+    }
+    static void SampleAmdDisplayFps(Snapshot snap)
+    {
+        snap.fpsSource = "AMD display FPS";
+        float fps;
+        if (ADL2_Adapter_FrameMetrics_Get(adlContext, adlAdapter, 0, out fps) == 0 && fps > 0 && fps < 1000)
+            snap.fps = Math.Round(fps, 1);
+    }
     static AdlLog NewAdlLog() { return new AdlLog { size = Marshal.SizeOf(typeof(AdlLog)), sensors = new AdlSensor[256] }; }
     static bool ValidTemperature(int value) { return value > 0 && value < 126; }
     static void InitAmd()
@@ -219,7 +298,16 @@ internal static class MonitorApp
             var log = NewAdlLog();
             if (ADL2_New_QueryPMLogData_Get(adlContext, adapter, ref log) == 0 &&
                 log.sensors[8].supported != 0 && ValidTemperature(log.sensors[8].value))
-            { adlAdapter = adapter; adlReady = true; return; }
+            {
+                adlAdapter = adapter; adlReady = true;
+                var info = new AdlMemoryInfo2 { type = new byte[256] };
+                if (ADL2_Adapter_MemoryInfo2_Get(adlContext, adapter, ref info) == 0 && info.size > 0)
+                    adlVramTotalGiB = info.size / 1073741824.0;
+                int supported;
+                if (fpsCsv == null && ADL2_Adapter_FrameMetrics_Caps(adlContext, adapter, out supported) == 0 && supported != 0)
+                    adlFrameReady = ADL2_Adapter_FrameMetrics_Start(adlContext, adapter, 0) == 0;
+                return;
+            }
         }
     }
     static string ReadCpuName()
