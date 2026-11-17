@@ -40,8 +40,20 @@
   }
   poll(); setInterval(poll, 2000);
   setInterval(() => { if (!document.hidden) $('clock').textContent = new Date().toLocaleTimeString([], { hour12: false }); }, 1000);
-  $('layout').addEventListener('click', () => { document.body.classList.toggle('compact'); localStorage.setItem('compact', document.body.classList.contains('compact') ? '1' : '0'); });
-  if (localStorage.getItem('compact') === '1') document.body.classList.add('compact');
+  const layouts = ['standard', 'compact', 'gpu', 'memory'];
+  let layout = layouts.includes(localStorage.getItem('layout')) ? localStorage.getItem('layout') : (localStorage.getItem('compact') === '1' ? 'compact' : 'standard');
+  function applyLayout() {
+    document.body.classList.remove('compact', 'layout-gpu', 'layout-memory');
+    if (layout === 'compact') document.body.classList.add('compact');
+    if (layout === 'gpu') document.body.classList.add('layout-gpu');
+    if (layout === 'memory') document.body.classList.add('layout-memory');
+    $('layout').title = `Layout: ${layout}. Tap to change.`;
+    $('layout').setAttribute('aria-label', `Layout: ${layout}. Tap to change.`);
+    $('layout').querySelector('span').textContent = `LAYOUT ${layouts.indexOf(layout) + 1}/4`;
+    localStorage.setItem('layout', layout);
+  }
+  $('layout').addEventListener('click', () => { layout = layouts[(layouts.indexOf(layout) + 1) % layouts.length]; applyLayout(); });
+  applyLayout();
   $('fullscreen').addEventListener('click', async () => {
     try { if (!document.fullscreenElement) { await document.documentElement.requestFullscreen(); try { await screen.orientation.lock('landscape'); } catch (_) {} } else await document.exitFullscreen(); }
     catch (_) { $('fullscreen').title = 'Use Chrome Add to Home screen for a standalone view'; }

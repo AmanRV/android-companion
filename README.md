@@ -4,6 +4,8 @@ A USB-only Windows 11 hardware dashboard for an old Android 11 phone. The Window
 
 The visual direction takes inspiration from [ascii.rest](https://ascii.rest/): restrained monospace type, technical labels, and a gentle field of animated characters. The artwork is original and rendered locally at low frame rate.
 
+Tap **LAYOUT** to cycle between standard, compact, GPU-first, and memory-first arrangements. The choice stays on the phone in local browser storage.
+
 ## Metrics
 
 | Metric | MVP source | Availability |
