@@ -21,8 +21,15 @@ if (-not $AdbPath -or -not (Test-Path $AdbPath)) {
 $arguments = @()
 if ($FpsCsv) { $arguments += @('--fps-csv', $FpsCsv) }
 if ($Game) { $arguments += @('--game', $Game) }
-$monitor = Start-Process -FilePath (Join-Path $root 'bin\Monitor.exe') -ArgumentList $arguments -PassThru -WindowStyle Hidden
+if ($arguments.Count -eq 0) {
+    $monitor = Start-Process -FilePath (Join-Path $root 'bin\Monitor.exe') -PassThru -WindowStyle Hidden
+} else {
+    $monitor = Start-Process -FilePath (Join-Path $root 'bin\Monitor.exe') -ArgumentList $arguments -PassThru -WindowStyle Hidden
+}
 Write-Host 'Monitor started. Press Ctrl+C to stop. USB link checks every 5 seconds.'
+# ADB prints expected disconnect states to stderr. PowerShell 5.1 turns those
+# into terminating errors under Stop, even when the stream is redirected.
+$ErrorActionPreference = 'Continue'
 $wasConnected = $false
 try {
     while (-not $monitor.HasExited) {
