@@ -8,6 +8,7 @@
   let requestRunning = false;
   let animationFrame = 0;
   let diskSignature = '';
+  if (navigator.userAgent.includes('AndroidCompanionApp')) document.body.classList.add('native-app');
   const metrics = Object.fromEntries(['cpu', 'gpu', 'ram', 'vram', 'fps'].map(id => [id, {
     current: null, from: null, target: null, start: 0, history: [], pending: null, shown: ''
   }]));
@@ -16,6 +17,7 @@
   function setMode(next) {
     mode = next;
     document.body.classList.toggle('scenes-active', next === 'scenes');
+    document.body.classList.toggle('scene-controls-visible', next === 'scenes');
     $('monitor-pane').hidden = next !== 'monitor';
     $('scenes-pane').hidden = next !== 'scenes';
     $('monitor-tab').classList.toggle('selected', next === 'monitor');
@@ -27,9 +29,14 @@
     }
     if (next === 'monitor') poll();
     else if (animationFrame) { cancelAnimationFrame(animationFrame); animationFrame = 0; }
+    if (next === 'scenes' && !document.fullscreenElement && !document.body.classList.contains('native-app')) {
+      document.documentElement.requestFullscreen().then(() => screen.orientation.lock('landscape')).catch(() => {});
+    }
   }
   $('monitor-tab').addEventListener('click', () => setMode('monitor'));
   $('scenes-tab').addEventListener('click', () => setMode('scenes'));
+  $('scene-exit').addEventListener('click', () => setMode('monitor'));
+  window.CompanionSceneExit = () => setMode('monitor');
 
   function applyLayout() {
     document.body.classList.remove('layout-gpu', 'layout-memory', 'layout-fps');
@@ -80,6 +87,51 @@
     if (state.history.length > 30) state.history.shift();
     state.pending = null;
   }
+  function showNumber(id, value, previous) {
+    const element = $(id);
+    const next = String(value);
+    element.setAttribute('aria-label', next);
+    const token = (element.rollToken || 0) + 1;
+    element.rollToken = token;
+    if (previous == null || previous === value || reduced.matches) {
+      element.textContent = next;
+      return;
+    }
+    const old = String(previous).padStart(next.length, ' ');
+    const fresh = next.padStart(old.length, ' ');
+    const up = value > previous;
+    element.replaceChildren();
+    for (let i = 0; i < fresh.length; i++) {
+      const slot = document.createElement('span');
+      const reel = document.createElement('span');
+      slot.className = 'slot'; reel.className = 'slot-reel';
+      const start = old[i], end = fresh[i];
+      const numeric = /^\d$/.test(start) && /^\d$/.test(end);
+      const frames = [start];
+      if (numeric && start !== end) {
+        let digit = Number(start);
+        for (let step = 0; step < 2; step++) {
+          digit = (digit + (up ? 1 : 9)) % 10;
+          if (digit === Number(end)) break;
+          frames.push(String(digit));
+        }
+      }
+      if (start !== end) frames.push(end);
+      if (!up) frames.reverse();
+      for (const frame of frames) {
+        const face = document.createElement('span');
+        face.textContent = frame === ' ' ? '\u00a0' : frame;
+        reel.append(face);
+      }
+      slot.append(reel); element.append(slot);
+      if (frames.length > 1) reel.animate(
+        up ? [{ transform: 'translateY(0)' }, { transform: `translateY(-${((frames.length - 1) / frames.length) * 100}%)` }]
+           : [{ transform: `translateY(-${((frames.length - 1) / frames.length) * 100}%)` }, { transform: 'translateY(0)' }],
+        { duration: 760, delay: i * 45, easing: 'cubic-bezier(.18,.72,.18,1)', fill: 'forwards' }
+      );
+    }
+    setTimeout(() => { if (element.rollToken === token) element.textContent = next; }, 900);
+  }
   function tick(now) {
     animationFrame = 0;
     if (document.hidden || mode !== 'monitor') return;
@@ -89,8 +141,6 @@
       const t = Math.min(1, (now - state.start) / duration);
       const eased = t * (2 - t);
       state.current = state.from + (state.target - state.from) * eased;
-      const shown = String(Math.round(state.current));
-      if (shown !== state.shown) { $(id).textContent = shown; state.shown = shown; }
       drawGraph(id, state, t);
       if (t === 1) { finishPending(state); drawGraph(id, state); }
       else active = true;
@@ -102,13 +152,13 @@
     if (!Number.isFinite(value)) {
       finishPending(state);
       state.current = state.from = state.target = null;
-      state.shown = '--'; element.textContent = '--';
+      state.shown = '--'; element.textContent = '--'; element.removeAttribute('aria-label');
       return;
     }
     if (state.target == null) {
       state.current = state.from = state.target = value;
       state.history.push(value);
-      state.shown = String(Math.round(value)); element.textContent = state.shown;
+      state.shown = String(Math.round(value)); showNumber(id, Math.round(value), null);
       drawGraph(id, state);
       return;
     }
@@ -117,7 +167,8 @@
       state.current = state.from = state.target = value;
       state.history.push(value);
       if (state.history.length > 30) state.history.shift();
-      state.shown = String(Math.round(value)); element.textContent = state.shown;
+      showNumber(id, Math.round(value), Number(state.shown));
+      state.shown = String(Math.round(value));
       drawGraph(id, state);
       return;
     }
@@ -125,10 +176,8 @@
     state.target = value;
     state.start = performance.now();
     state.pending = value;
-    element.animate([
-      { transform: 'translateY(4px) rotateX(-14deg)', opacity: .72 },
-      { transform: 'translateY(0) rotateX(0)', opacity: 1 }
-    ], { duration: 340, easing: 'ease-out' });
+    showNumber(id, Math.round(value), Number(state.shown));
+    state.shown = String(Math.round(value));
     if (!animationFrame) animationFrame = requestAnimationFrame(tick);
   }
 

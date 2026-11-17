@@ -13,19 +13,27 @@ let stop = null;
 let generation = 0;
 let current = null;
 let sceneRatio = 2;
+let controlsTimer = 0;
 const cache = new Map();
+
+function revealControls() {
+  if (!visible || !picker.hidden) return;
+  document.body.classList.add('scene-controls-visible');
+  clearTimeout(controlsTimer);
+  controlsTimer = setTimeout(() => document.body.classList.remove('scene-controls-visible'), 3500);
+}
 
 for (const [i, slug] of scenes.entries()) {
   const button = document.createElement('button');
   button.type = 'button';
   button.textContent = slug.replaceAll('-', ' ');
-  button.addEventListener('click', () => { picker.hidden = true; show(i); });
+  button.addEventListener('click', () => { picker.hidden = true; show(i); revealControls(); });
   names.append(button);
 }
 
 function resize() {
   if (!current) return;
-  const width = Math.min(stage.clientWidth, stage.clientHeight * sceneRatio);
+  const width = Math.max(stage.clientWidth, stage.clientHeight * sceneRatio);
   current.style.width = Math.max(1, Math.floor(width)) + 'px';
 }
 
@@ -68,26 +76,32 @@ async function show(next) {
 
 function setVisible(value) {
   visible = value;
-  if (visible) show(index);
-  else { ++generation; clear(); picker.hidden = true; delete stage.dataset.loading; }
+  if (visible) { show(index); revealControls(); }
+  else { ++generation; clear(); picker.hidden = true; clearTimeout(controlsTimer); delete stage.dataset.loading; }
 }
 
 window.SceneViewer = { setVisible };
 if (!pane.hidden) setVisible(true);
-$('scene-prev').addEventListener('click', () => show(index - 1));
-$('scene-next').addEventListener('click', () => show(index + 1));
+$('scene-prev').addEventListener('click', () => { show(index - 1); revealControls(); });
+$('scene-next').addEventListener('click', () => { show(index + 1); revealControls(); });
 $('scene-play').addEventListener('click', () => {
   playing = !playing;
   $('scene-play').textContent = playing ? '[pause]' : '[play]';
   show(index);
+  revealControls();
 });
-$('scene-picker').addEventListener('click', () => { picker.hidden = !picker.hidden; });
-$('scene-list-close').addEventListener('click', () => { picker.hidden = true; });
+$('scene-picker').addEventListener('click', () => { picker.hidden = !picker.hidden; clearTimeout(controlsTimer); });
+$('scene-list-close').addEventListener('click', () => { picker.hidden = true; revealControls(); });
 document.addEventListener('keydown', e => {
   if (!visible) return;
   if (e.key === 'ArrowLeft') show(index - 1);
   if (e.key === 'ArrowRight') show(index + 1);
-  if (e.key === 'Escape') picker.hidden = true;
+  if (e.key === 'Escape') { picker.hidden = true; revealControls(); }
+});
+stage.addEventListener('click', e => {
+  if (!picker.hidden || (e.target !== stage && e.target !== current)) return;
+  document.body.classList.contains('scene-controls-visible')
+    ? document.body.classList.remove('scene-controls-visible') : revealControls();
 });
 let touchX = null, touchY = null;
 stage.addEventListener('touchstart', e => {
