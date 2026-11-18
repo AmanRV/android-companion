@@ -20,6 +20,13 @@ internal static class MonitorApp
     static readonly string Web = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "web"));
     static string fpsCsv, game;
     static volatile bool running = true;
+    static HttpListener activeListener;
+    internal static void Stop()
+    {
+        running = false;
+        var listener = activeListener;
+        if (listener != null) try { listener.Stop(); } catch { }
+    }
     static Snapshot current = new Snapshot();
     static ulong lastIdle, lastKernel, lastUser;
     static IntPtr nvmlDevice;
@@ -106,7 +113,7 @@ internal static class MonitorApp
     [DllImport("atiadlxx.dll", CallingConvention = CallingConvention.Cdecl)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)] static extern int ADL2_Adapter_FrameMetrics_Stop(IntPtr context, int adapter, int source);
 
-    static int Main(string[] args)
+    internal static int Run(string[] args)
     {
         for (int i = 0; i < args.Length; i++)
         {
@@ -127,6 +134,7 @@ internal static class MonitorApp
             listener.Prefixes.Add("http://127.0.0.1:" + Port + "/");
             try { listener.Start(); }
             catch (Exception e) { Console.Error.WriteLine("Cannot listen on loopback: " + e.Message); return 1; }
+            activeListener = listener;
             Console.WriteLine("Android Companion: http://127.0.0.1:" + Port + "/");
             Console.CancelKeyPress += delegate(object sender, ConsoleCancelEventArgs e) { e.Cancel = true; running = false; listener.Stop(); };
             while (running)
@@ -138,6 +146,7 @@ internal static class MonitorApp
                 catch (Exception e) { Console.Error.WriteLine("Request error: " + e.Message); try { context.Response.Abort(); } catch { } }
             }
         }
+        activeListener = null;
         running = false;
         sampler.Join(2500);
         if (nvmlReady) try { NvmlShutdown(); } catch { }

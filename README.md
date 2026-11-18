@@ -36,6 +36,16 @@ Metadata and timeline polling run every two seconds; artwork is refreshed on tra
 
 Unknown readings show `n/a` or `--`. The AMD display frame counter reports no active frames on the tested desktop; a game may produce a reading, but this has not yet been verified. Accurate per-game FPS needs a present-event capture such as PresentMon. The Windows APIs do not expose a reliable universal CPU package temperature: Microsoft's `Win32_TemperatureProbe.CurrentReading` is not populated, and this PC exposes no ACPI thermal-zone reading. AMD's [Ryzen Master Monitoring SDK](https://www.amd.com/en/developer/ryzen-master-monitoring-sdk.html) and [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) can read CPU sensors, but require additional components or privileges. The app does not install a hardware-access driver by default.
 
+## Launch and exit on Windows
+
+Double-click **Launch Android Companion.vbs** in the repository. It builds the app if needed, opens the phone dashboard, then runs quietly in the Windows system tray (beside the clock; check the hidden-icons arrow). There is no console window to keep open. The process appears as **AndroidCompanion.exe** in Task Manager.
+
+Right-click the small screen/eyes tray icon for **Open dashboard on phone**, **Open dashboard on PC**, **Select ADB executable**, and **Exit Android Companion**. Double-clicking the icon opens the phone dashboard. Launching the app again reuses the existing instance. Exit stops the monitoring service, removes the USB reverse mapping, and releases the hardware APIs.
+
+For a Start-menu entry, run `powershell -NoProfile -ExecutionPolicy Bypass -File .\install-shortcut.ps1` once. Then search for **Android Companion** in Start. No Windows startup task or background Windows service is installed.
+
+ADB is discovered from the supplied `-AdbPath`, a previously selected location, the standard Android SDK directory, a sibling `platform-tools` folder, or PATH. If missing, the app asks you to select `adb.exe`. That personal path is saved only under `%LOCALAPPDATA%\AndroidCompanion\adb-path.txt`, outside the public repository. On another PC, select its ADB installation or keep `platform-tools` next to the checkout.
+
 ## Install on Windows 11 and Android 11
 
 1. Clone or download this repository on the Windows PC. Windows 11's .NET Framework C# compiler builds the service; no .NET SDK or Node is needed.
@@ -56,7 +66,7 @@ Unknown readings show `n/a` or `--`. The AMD display frame counter reports no ac
 
 6. The launcher builds the service, selects a physical USB ADB device, sets up `adb reverse tcp:8765 tcp:8765`, and opens the installed app. The app stays in landscape, hides system bars, and keeps the display awake. Without the APK, the launcher opens a browser fallback; tap **[fullscreen]** there if supported.
 
-Leave PowerShell open for automatic USB reconnection. Press Ctrl+C to stop. The page is also available on the PC at `http://127.0.0.1:8765/`. If ADB reports `unauthorized`, unlock the phone and accept its prompt. A data-capable cable and the phone maker's USB driver may be needed.
+PowerShell can close after launch. Automatic USB reconnection runs inside the tray app; use its Exit menu item to stop. The page is also available on the PC at `http://127.0.0.1:8765/`. If ADB reports `unauthorized`, unlock the phone and accept its prompt. A data-capable cable and the phone maker's USB driver may be needed.
 
 ## Optional game FPS
 
@@ -66,7 +76,7 @@ Download PresentMon from its [official releases](https://github.com/GameTechDev/
 & 'C:\path\to\PresentMon.exe' --process_name game.exe --output_file "$env:TEMP\companion-fps.csv"
 ```
 
-Then launch Android Companion with the same file and process name:
+Exit any running tray instance, then launch Android Companion with the same file and process name:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\start.ps1 -AdbPath 'C:\path\to\platform-tools\adb.exe' -FpsCsv "$env:TEMP\companion-fps.csv" -Game 'game.exe'
@@ -84,7 +94,7 @@ PresentMon may need administrator access or Performance Log Users membership for
 
 ## Development and provenance
 
-Run `powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1`, then `.\bin\Monitor.exe`. The UI is plain HTML, CSS, and JavaScript. The Android wrapper is a single Java Activity and has no third-party runtime libraries. GitHub Actions builds a debug APK; its artifact is not committed.
+Run `powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1`, then `.\bin\AndroidCompanion.exe`. The UI is plain HTML, CSS, and JavaScript. The Android wrapper is a single Java Activity and has no third-party runtime libraries. GitHub Actions builds a debug APK; its artifact is not committed.
 
 Scene source and the original license are under `vendor/ascii-source/`; browser-ready local modules are under `web/vendor/ascii/`. They were copied from [bas3line/ascii](https://github.com/bas3line/ascii) at commit `9ba5ab1` (MIT). To regenerate them for development, clone that project locally and run `node scripts/vendor-scenes.mjs <path-to-ascii-checkout>` with Node 24+. Node is unnecessary for installing or running this app. See [third-party notices](THIRD_PARTY_NOTICES.md).
 
