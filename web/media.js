@@ -3,6 +3,7 @@
   const $ = id => document.getElementById(id);
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   let media = null, token = '', received = 0, busy = false, polling = false, dragging = false, key = '', art = '';
+  let emptySince = 0;
   const time = seconds => { const n = Math.max(0, Math.floor(seconds || 0)); return `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`; };
   const position = () => media ? Math.min(media.duration, media.position + (media.playing ? (performance.now() - received) / 1000 * media.rate : 0)) : 0;
   function progress() {
@@ -19,12 +20,14 @@
       $('media-panel').append(ghost);
       ghost.animate([{ transform: 'translateY(0)', opacity: 1 }, { transform: 'translateY(-110%)', opacity: 0 }], { duration: 650, easing: 'cubic-bezier(.18,.72,.18,1)' }).onfinish = () => ghost.remove();
     }
+    const hadView = !!key;
     key = next;
-    return true;
+    return hadView;
   }
   function render() {
     const active = media && media.available;
-    const changed = transition(active ? media.session + media.title : 'idle');
+    const changed = transition(active ? 'media' : 'idle');
+    $('media-panel').classList.toggle('is-idle', !active);
     $('media-player').hidden = !active; $('media-idle').hidden = active;
     if (changed && !reduced.matches) $(active ? 'media-player' : 'media-idle').animate([{ transform: 'translateY(110%)', opacity: 0 }, { transform: 'translateY(0)', opacity: 1 }], { duration: 650, easing: 'cubic-bezier(.18,.72,.18,1)' });
     if (!active) return;
@@ -57,9 +60,18 @@
     try {
       const response = await fetch('/api/media', { cache: 'no-store' });
       if (!response.ok) throw Error();
-      const value = await response.json(); media = value.media; token = value.token; received = performance.now();
+      const value = await response.json();
+      // Players can briefly withdraw their session during pause or a track change.
+      if (!value.media.available && media && media.available) {
+        if (!emptySince) emptySince = performance.now();
+        if (performance.now() - emptySince < 4000) return;
+      } else emptySince = 0;
+      media = value.media; token = value.token; received = performance.now();
       render();
-    } catch { media = null; render(); }
+    } catch {
+      // A brief timeout or player update must not roll the panel into the idle face.
+      // Retain paused/playing media while the existing USB connection retries.
+    }
     finally { polling = false; }
   }
   async function command(action, seconds = 0) {

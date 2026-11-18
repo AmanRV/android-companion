@@ -29,6 +29,8 @@ internal static class MonitorApp
     static int adlAdapter = -1;
     static double? adlVramTotalGiB;
     static bool adlFrameReady;
+    static bool adlFrameSupported;
+    static DateTime nextFrameRetry = DateTime.MinValue;
     static DateTime nextDiskRefresh = DateTime.MinValue;
     static DiskSnapshot[] cachedDisks = new DiskSnapshot[0];
     static readonly AdlAlloc AdlAllocator = size => Marshal.AllocHGlobal(size);
@@ -209,7 +211,7 @@ internal static class MonitorApp
             try { SampleGpu(snap); } catch { }
             try { SampleDisks(snap); } catch { }
             if (fpsCsv != null) try { SampleFps(snap); } catch { }
-            if (!snap.fps.HasValue && adlFrameReady) try { SampleAmdDisplayFps(snap); } catch { }
+            if (!snap.fps.HasValue && adlFrameSupported) try { SampleAmdDisplayFps(snap); } catch { }
             lock (Gate) current = snap;
             Thread.Sleep(2000);
         }
@@ -309,9 +311,23 @@ internal static class MonitorApp
     static void SampleAmdDisplayFps(Snapshot snap)
     {
         snap.fpsSource = "AMD display FPS";
+        if (!adlFrameReady && DateTime.UtcNow >= nextFrameRetry)
+        {
+            nextFrameRetry = DateTime.UtcNow.AddSeconds(30);
+            adlFrameReady = ADL2_Adapter_FrameMetrics_Start(adlContext, adlAdapter, 0) == 0;
+        }
         float fps;
-        if (ADL2_Adapter_FrameMetrics_Get(adlContext, adlAdapter, 0, out fps) == 0 && fps > 0 && fps < 1000)
+        int result = ADL2_Adapter_FrameMetrics_Get(adlContext, adlAdapter, 0, out fps);
+        if (result == 0 && fps >= 0 && fps < 1000)
+        {
+            adlFrameReady = true;
             snap.fps = Math.Round(fps, 1);
+        }
+        else if (result != 0 && DateTime.UtcNow >= nextFrameRetry)
+        {
+            ADL2_Adapter_FrameMetrics_Stop(adlContext, adlAdapter, 0);
+            adlFrameReady = false;
+        }
     }
     static AdlLog NewAdlLog() { return new AdlLog { size = Marshal.SizeOf(typeof(AdlLog)), sensors = new AdlSensor[256] }; }
     static bool ValidTemperature(int value) { return value > 0 && value < 126; }
@@ -332,7 +348,10 @@ internal static class MonitorApp
                     adlVramTotalGiB = info.size / 1073741824.0;
                 int supported;
                 if (fpsCsv == null && ADL2_Adapter_FrameMetrics_Caps(adlContext, adapter, out supported) == 0 && supported != 0)
+                {
+                    adlFrameSupported = true;
                     adlFrameReady = ADL2_Adapter_FrameMetrics_Start(adlContext, adapter, 0) == 0;
+                }
                 return;
             }
         }

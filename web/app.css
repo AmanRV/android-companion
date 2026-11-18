@@ -79,3 +79,10 @@ body.scenes-active .eyes,body.scenes-active .eyes i{animation-play-state:paused}
 @media(orientation:portrait){.monitor-content{flex-direction:column}#media-panel{flex:none;height:26vh}.monitor-content>.grid{flex:1;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(3,minmax(0,1fr))}#media-player{display:grid;grid-template-columns:35% 1fr;grid-template-rows:1fr auto auto;gap:5px 12px}.art-wrap{grid-row:1/4}.media-copy,.media-progress,.media-buttons{grid-column:2}.media-face{gap:16px}.eyes i{height:38px;width:30px}.monitor-content .reading{font-size:34px}.monitor-content .disk-list{flex-direction:column;align-items:stretch}.monitor-content .disk-row{flex:initial}}
 @media(prefers-reduced-motion:reduce){.eyes,.eyes i{animation:none}}
 .media-ghost{position:absolute!important;inset:12px;width:auto!important;height:auto!important;pointer-events:none;z-index:2;display:flex;flex-direction:column;gap:5px}
+/* Keep rolling and settled digits on the same fixed-width grid. */
+.value{letter-spacing:0;line-height:1}.slot{width:1ch;min-width:0;flex:none;text-align:center;line-height:1}.slot-reel>span{width:1ch;text-align:center}
+/* Quiet monochrome CRT glass, confined to the idle companion. */
+#media-panel.is-idle{background:#121517;box-shadow:inset 0 0 35px #0009}
+.media-face{position:relative;isolation:isolate;border-radius:12px;background:radial-gradient(ellipse at center,#aebcc00b 0%,#05070826 65%,#0009 100%);overflow:hidden;gap:0}
+.media-face::after{content:"";position:absolute;inset:0;z-index:2;pointer-events:none;border-radius:inherit;background:repeating-linear-gradient(0deg,#0000 0px,#0000 2px,#0003 3px,#0000 4px);box-shadow:inset 0 0 26px #0008,inset 0 0 2px #b9c4cc30}
+.media-face .eyes{filter:drop-shadow(0 0 5px #cbd9df38)}.media-face .eyes i{background:#cbd3d7;box-shadow:0 0 12px #cfdbdf19}

@@ -93,8 +93,15 @@
     element.setAttribute('aria-label', next);
     const token = (element.rollToken || 0) + 1;
     element.rollToken = token;
+    function settle() {
+      element.replaceChildren();
+      for (const digit of next) {
+        const slot = document.createElement('span');
+        slot.className = 'slot'; slot.textContent = digit; element.append(slot);
+      }
+    }
     if (previous == null || previous === value || reduced.matches) {
-      element.textContent = next;
+      settle();
       return;
     }
     const old = String(previous).padStart(next.length, ' ');
@@ -127,10 +134,19 @@
       if (frames.length > 1) reel.animate(
         up ? [{ transform: 'translateY(0)' }, { transform: `translateY(-${((frames.length - 1) / frames.length) * 100}%)` }]
            : [{ transform: `translateY(-${((frames.length - 1) / frames.length) * 100}%)` }, { transform: 'translateY(0)' }],
-        { duration: 760, delay: i * 45, easing: 'cubic-bezier(.18,.72,.18,1)', fill: 'forwards' }
+        { duration: 760, delay: i * 45, easing: 'cubic-bezier(.18,.72,.18,1)', fill: 'both' }
       );
     }
-    setTimeout(() => { if (element.rollToken === token) element.textContent = next; }, 900);
+    // Remove a disappearing leading digit gradually; the final cells retain exactly the same geometry.
+    const lengthChange = next.length - String(previous).length;
+    for (let i = 0; i < Math.abs(lengthChange); i++) {
+      const growing = lengthChange > 0;
+      element.children[i].animate(growing
+        ? [{ width: '0ch', opacity: 0 }, { width: '1ch', opacity: 1 }]
+        : [{ width: '1ch', opacity: 1 }, { width: '0ch', opacity: 0 }],
+        { duration: 760, easing: 'cubic-bezier(.18,.72,.18,1)', fill: 'both' });
+    }
+    setTimeout(() => { if (element.rollToken === token) settle(); }, 800 + fresh.length * 45);
   }
   function tick(now) {
     animationFrame = 0;
@@ -152,6 +168,7 @@
     if (!Number.isFinite(value)) {
       finishPending(state);
       state.current = state.from = state.target = null;
+      element.rollToken = (element.rollToken || 0) + 1;
       state.shown = '--'; element.textContent = '--'; element.removeAttribute('aria-label');
       return;
     }
@@ -224,7 +241,7 @@
       $('fps-state').textContent = s.fps == null ? 'waiting for capture' : 'recent frame average';
     } else if (s.fpsSource === 'AMD display FPS') {
       $('fps-source').textContent = 'AMD display / all apps';
-      $('fps-state').textContent = s.fps == null ? 'no active frames detected' : 'display average, not per-game';
+      $('fps-state').textContent = s.fps == null ? 'driver reconnecting' : s.fps === 0 ? 'no display frames reported' : 'display average, not per-game';
     } else {
       $('fps-source').textContent = 'no frame source';
       $('fps-state').textContent = 'PresentMon needed for per-game FPS';

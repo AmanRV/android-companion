@@ -39,6 +39,13 @@ try {
         if ($connected) {
             & $AdbPath -d reverse tcp:8765 tcp:8765 2>$null | Out-Null
             if ($LASTEXITCODE -eq 0 -and -not $wasConnected) {
+                # Dedicated USB dashboard: keep Android awake while USB powered.
+                # Preserve any existing AC/wireless stay-awake flags.
+                $awakeSetting = & $AdbPath -d shell settings get global stay_on_while_plugged_in 2>$null
+                $awakeMask = 0
+                if ([int]::TryParse(($awakeSetting | Out-String).Trim(), [ref]$awakeMask)) {
+                    & $AdbPath -d shell settings put global stay_on_while_plugged_in ($awakeMask -bor 2) 2>$null | Out-Null
+                }
                 $installed = & $AdbPath -d shell pm path com.androidcompanion.dashboard 2>$null
                 if ($installed -match '^package:') {
                     & $AdbPath -d shell am start -n com.androidcompanion.dashboard/.MainActivity 2>$null | Out-Null

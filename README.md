@@ -104,3 +104,11 @@ There is no automatic launch at phone boot. CPU temperature requires an optional
 - [Microsoft's unpopulated temperature probe reading](https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-temperatureprobe)
 - [PresentMon console capture](https://github.com/GameTechDev/PresentMon/blob/main/README-ConsoleApplication.md)
 - [Android immersive mode](https://developer.android.com/develop/ui/views/layout/immersive)
+
+### Dedicated display behavior
+
+The USB launcher enables Android's **stay awake while USB powered** setting, preserving any existing AC/wireless flags. This is a device setting and remains enabled after the launcher stops; normal unplugged sleep is unaffected. The Android app also requests a lit screen while it is foregrounded. To remove only the USB flag later, read `adb -d shell settings get global stay_on_while_plugged_in`, clear bit 2 from that number, and write it back with `adb -d shell settings put global stay_on_while_plugged_in <number>` (use `0` if USB was the only enabled flag).
+
+The idle face uses static monochrome scanlines, soft glow and shaded glass; there is no animated noise or full-screen CRT filter. Media-panel rolling is restricted to entering/leaving idle, with a short grace period for temporary missing player sessions. Pausing, resuming and changing tracks do not roll the panel.
+
+AMD display FPS preserves valid zero readings as `0` instead of showing missing data. Driver errors show a reconnecting state and trigger a bounded retry. This is the AMD display frame metric, not the monitor's configured refresh rate; it may be zero when the driver reports no frame activity.
