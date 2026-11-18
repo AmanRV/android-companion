@@ -395,4 +395,3 @@ internal static class MonitorApp
     }
     static double Clamp(double value) { return Math.Round(Math.Max(0, Math.Min(100, value)), 1); }
 }
-

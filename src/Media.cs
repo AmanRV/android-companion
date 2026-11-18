@@ -124,6 +124,3 @@ internal static class MediaBridge
         catch { return false; }
     }
 }
-
-
-

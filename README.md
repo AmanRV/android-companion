@@ -104,4 +104,3 @@ There is no automatic launch at phone boot. CPU temperature requires an optional
 - [Microsoft's unpopulated temperature probe reading](https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-temperatureprobe)
 - [PresentMon console capture](https://github.com/GameTechDev/PresentMon/blob/main/README-ConsoleApplication.md)
 - [Android immersive mode](https://developer.android.com/develop/ui/views/layout/immersive)
-

@@ -13,4 +13,3 @@ $references += Get-ChildItem (Join-Path $env:WINDIR 'Microsoft.NET\assembly\GAC_
 & $compiler /nologo /optimize+ /target:exe /platform:anycpu /r:System.Web.Extensions.dll /r:System.Management.dll $references "/out:$(Join-Path $bin 'Monitor.exe')" (Join-Path $root 'src\Monitor.cs') (Join-Path $root 'src\Media.cs')
 if ($LASTEXITCODE -ne 0) { throw 'Compilation failed.' }
 Write-Host "Built $bin\Monitor.exe"
-
