@@ -6,6 +6,16 @@ The **monitor** is a dark, neutral, full-screen display with six compact tiles, 
 
 The **scenes** tab contains all 34 animated scenes from [ascii.rest](https://ascii.rest/), copied into this repository under its MIT license. Each scene fills the display; its edges may crop slightly to match the phone's aspect ratio. Tap to reveal controls, swipe to change scenes, or use **[all scenes]** to choose one. **[pause]** holds a still frame. Your last scene is saved locally on the phone. Scenes load only when selected and never request ascii.rest or any other website.
 
+## Media controller and companion
+
+The left third of the landscape dashboard shows media from Windows' System Media Transport Controls. The six monitoring tiles occupy the remaining two thirds. Spotify and browser players such as YouTube and YouTube Music work when they publish a Windows media session. No browser extension, account login, cloud request, or extra PC app is needed.
+
+Artwork comes from the local Windows session and stays in memory. Play/pause, previous/next, a seek slider, and ten-second seek buttons are enabled only when the player supports them. Paused media remains visible so it can be resumed. With no active session, a pair of monochrome eyes glances around and blinks. The panel rolls vertically when switching between media and the idle face. Reduced-motion preferences disable these animations.
+
+The Windows media type chooses square music artwork or widescreen video artwork. Browser metadata can mislabel videos as music, so browser and unknown sessions use artwork proportions as a best-effort fallback. Some sites omit artwork, timelines, or seek support; missing capabilities are not fabricated. The active playing session takes priority, followed by Windows' current session. There is currently no manual source picker.
+
+Metadata and timeline polling run every two seconds; artwork is refreshed on track changes. Progress interpolation and animations run on the phone. Monitoring remains read-only; the only permitted writes are the five media actions. The control endpoint requires POST, the exact local Origin, and a random per-process token supplied by the same-origin media endpoint. It rejects old session IDs and unsupported actions. The token prevents unrelated webpages from sending blind media commands; it does not protect against software already running as the local user.
+
 ## Metrics
 
 | Metric | Source | Notes |
@@ -67,7 +77,7 @@ PresentMon may need administrator access or Performance Log Users membership for
 ## Security and resource use
 
 - The HTTP service binds only `127.0.0.1:8765`. ADB reverse carries traffic over USB. The application makes no outbound requests.
-- The service accepts GET only for the stats endpoint and a fixed allowlist of local assets. It has no command, upload, write, or arbitrary file endpoint. A Content Security Policy allows only same-origin resources.
+- The service accepts GET for telemetry, media metadata, cached artwork, and a fixed allowlist of local assets. POST is accepted only for the authenticated media-control allowlist. It has no shell command, upload, arbitrary write, or arbitrary file endpoint. A Content Security Policy allows only same-origin resources.
 - Stats are sampled and fetched every 2 seconds; fixed-drive capacity is refreshed every 10 seconds. Smooth number and graph motion runs only in the phone browser between real samples. Browser polling pauses when hidden or in scenes mode. The scene renderer uses an optimized canvas, caps animation at 10 fps, and stops when its tab is hidden or monitor mode is selected.
 - Layout and scene preferences stay in local WebView storage on the phone. Generated executables, APKs, local tools, logs, and captures are ignored by Git.
 - USB debugging gives an authorized PC broad access to the phone. Revoke its authorization in Android Developer options if that PC is no longer trusted.
@@ -94,3 +104,4 @@ There is no automatic launch at phone boot. CPU temperature requires an optional
 - [Microsoft's unpopulated temperature probe reading](https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-temperatureprobe)
 - [PresentMon console capture](https://github.com/GameTechDev/PresentMon/blob/main/README-ConsoleApplication.md)
 - [Android immersive mode](https://developer.android.com/develop/ui/views/layout/immersive)
+

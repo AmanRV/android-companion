@@ -11,7 +11,7 @@ using System.Threading;
 using System.Web.Script.Serialization;
 using Microsoft.Win32;
 
-// One sampler and one loopback-only, read-only HTTP server. No remote assets or commands.
+// Loopback telemetry and a fixed Windows media-control allowlist. No remote assets or shell commands.
 internal static class MonitorApp
 {
     const int Port = 8765;
@@ -119,6 +119,7 @@ internal static class MonitorApp
         catch (DllNotFoundException) { } catch (EntryPointNotFoundException) { } catch (BadImageFormatException) { }
         var sampler = new Thread(SampleLoop) { IsBackground = true, Name = "telemetry" };
         sampler.Start();
+        MediaBridge.Start();
         using (var listener = new HttpListener())
         {
             listener.Prefixes.Add("http://127.0.0.1:" + Port + "/");
@@ -150,10 +151,35 @@ internal static class MonitorApp
         response.Headers["Cache-Control"] = "no-store";
         response.Headers["Content-Security-Policy"] = "default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
         response.Headers["Referrer-Policy"] = "no-referrer";
-        if (request.HttpMethod != "GET" || !IPAddress.IsLoopback(request.RemoteEndPoint.Address) || request.Url.Host != "127.0.0.1")
+        if (!IPAddress.IsLoopback(request.RemoteEndPoint.Address) || request.Url.Authority != "127.0.0.1:8765")
         { response.StatusCode = 403; response.Close(); return; }
         string path = request.Url.AbsolutePath, body, contentType;
-        if (path == "/api/stats")
+        if (path == "/api/media/control" && request.HttpMethod == "POST")
+        {
+            if (request.Headers["Origin"] != "http://127.0.0.1:8765" || request.Headers["X-Media-Token"] != MediaBridge.Token || request.ContentLength64 < 1 || request.ContentLength64 > 1024 || request.ContentType != "application/json")
+            { response.StatusCode = 403; response.Close(); return; }
+            try
+            {
+                string input; using (var reader = new StreamReader(request.InputStream)) input = reader.ReadToEnd();
+                var command = Json.Deserialize<MediaCommand>(input);
+                bool ok = MediaBridge.Command(command.session, command.action, command.seconds).GetAwaiter().GetResult();
+                response.StatusCode = ok ? 200 : 409;
+                body = ok ? "{\"ok\":true}" : "{\"ok\":false}";
+            }
+            catch { response.StatusCode = 400; body = "{\"ok\":false}"; }
+            contentType = "application/json";
+        }
+        else if (request.HttpMethod != "GET") { response.StatusCode = 405; response.Close(); return; }
+        else if (path == "/api/media")
+        { body = Json.Serialize(new { media = MediaBridge.Current, token = MediaBridge.Token }); contentType = "application/json"; }
+        else if (path == "/api/media/artwork")
+        {
+            string mime; byte[] art = MediaBridge.Artwork(out mime);
+            response.ContentType = mime; response.ContentLength64 = art.Length;
+            if (art.Length == 0) response.StatusCode = 404;
+            response.OutputStream.Write(art, 0, art.Length); response.Close(); return;
+        }
+        else if (path == "/api/stats")
         {
             Snapshot snap; lock (Gate) snap = current;
             body = Json.Serialize(snap); contentType = "application/json; charset=utf-8";
@@ -161,7 +187,7 @@ internal static class MonitorApp
         else
         {
             string name = path == "/" ? "index.html" : path.TrimStart('/');
-            bool allowed = name == "index.html" || name == "app.css" || name == "app.js" || name == "scenes.js" ||
+            bool allowed = name == "index.html" || name == "app.css" || name == "app.js" || name == "media.js" || name == "scenes.js" ||
                 name == "vendor/ascii/mount.js" || name == "vendor/ascii/width.js" || name == "vendor/ascii/manifest.js" ||
                 Regex.IsMatch(name, @"\Avendor/ascii/pieces/[a-z-]+\.js\z");
             if (!allowed || !File.Exists(Path.Combine(Web, name))) { response.StatusCode = 404; response.Close(); return; }
@@ -172,6 +198,7 @@ internal static class MonitorApp
         response.ContentType = contentType; response.ContentLength64 = bytes.Length;
         response.OutputStream.Write(bytes, 0, bytes.Length); response.Close();
     }
+    sealed class MediaCommand { public string session { get; set; } public string action { get; set; } public double seconds { get; set; } }
     static void SampleLoop()
     {
         while (running)
@@ -368,3 +395,4 @@ internal static class MonitorApp
     }
     static double Clamp(double value) { return Math.Round(Math.Max(0, Math.Min(100, value)), 1); }
 }
+

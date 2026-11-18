@@ -7,6 +7,7 @@
   <title>android companion</title>
   <link rel="stylesheet" href="/app.css">
   <script src="/app.js" defer></script>
+  <script src="/media.js" defer></script>
 </head>
 <body>
   <main class="app">
@@ -18,6 +19,17 @@
 
     <section id="monitor-pane" class="pane monitor-pane" aria-label="PC monitor">
       <div class="pane-heading"><div><div class="eyebrow">pc / live statistics</div><h1 id="hostname">pc</h1></div><span id="updated">waiting for data</span></div>
+      <div class="monitor-content">
+        <aside id="media-panel" aria-label="PC media controller">
+          <div id="media-idle" class="media-face" role="img" aria-label="Companion resting"><div class="eyes"><i></i><i></i></div><span>ready when you are</span></div>
+          <div id="media-player" hidden>
+            <div class="art-wrap"><img id="media-art" alt="Media artwork" hidden><div id="media-placeholder">♪</div></div>
+            <div class="media-copy"><div id="media-source" class="eyebrow">now playing</div><div id="media-title"></div><div id="media-artist"></div></div>
+            <div class="media-progress"><input id="media-seek" type="range" min="0" max="100" value="0" step="1" aria-label="Seek media"><div><span id="media-position">0:00</span><span id="media-duration">0:00</span></div></div>
+            <div class="media-buttons"><button id="media-prev" aria-label="Previous track">&#x23EE;</button><button id="media-back" aria-label="Seek back 10 seconds">−10</button><button id="media-toggle" aria-label="Play">▶</button><button id="media-forward" aria-label="Seek forward 10 seconds">+10</button><button id="media-next" aria-label="Next track">&#x23ED;</button></div>
+            <div id="media-message" role="status"></div>
+          </div>
+        </aside>
       <div class="grid" id="dashboard">
         <article class="tile cpu"><div class="tile-heading">cpu usage</div><div class="model" id="cpu-name">processor</div><div class="reading"><span class="value" id="cpu">--</span><span class="unit">%</span></div><div class="tile-foot"><div>temperature <strong id="cpu-temp">n/a</strong></div><svg id="cpu-graph" viewBox="0 0 300 32" preserveAspectRatio="none" role="img" aria-label="CPU history"><path></path></svg></div></article>
         <article class="tile gpu"><div class="tile-heading">gpu usage</div><div class="model" id="gpu-name">graphics adapter</div><div class="reading"><span class="value" id="gpu">--</span><span class="unit">%</span></div><div class="tile-foot"><div>temperature <strong id="gpu-temp">n/a</strong></div><svg id="gpu-graph" viewBox="0 0 300 32" preserveAspectRatio="none" role="img" aria-label="GPU history"><path></path></svg></div></article>
@@ -25,6 +37,7 @@
         <article class="tile vram"><div class="tile-heading">video memory</div><div class="model">dedicated gpu vram</div><div class="reading"><span class="value" id="vram">--</span><span class="unit">%</span></div><div class="tile-foot"><div id="vram-detail">-- / -- GiB used</div><svg id="vram-graph" viewBox="0 0 300 32" preserveAspectRatio="none" role="img" aria-label="VRAM history"><path></path></svg></div></article>
         <article class="tile storage"><div class="tile-heading">storage volumes</div><div class="model">fixed local drives / free space</div><div class="disk-list" id="disks"><div class="disk-empty">waiting for volumes</div></div></article>
         <article class="tile fps"><div class="tile-heading">frame rate</div><div class="model" id="fps-source">checking frame source</div><div class="reading"><span class="value" id="fps">--</span><span class="unit">fps</span></div><div class="tile-foot"><div id="fps-state">waiting for frames</div><div>optional</div></div></article>
+      </div>
       </div>
     </section>
 
@@ -34,7 +47,9 @@
       <div class="scene-bottom"><button id="scene-prev" type="button">[previous]</button><button id="scene-play" type="button">[pause]</button><button id="scene-next" type="button">[next]</button></div>
     </section>
 
-    <footer class="footer"><button id="layout" type="button">[layout: standard]</button><span>usb only / read only</span></footer>
+    <footer class="footer"><button id="layout" type="button">[layout: standard]</button><span>usb / local media</span></footer>
   </main>
 </body>
 </html>
+
+
