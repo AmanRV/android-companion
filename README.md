@@ -6,6 +6,24 @@ The **monitor** is a dark, neutral, full-screen display with six compact tiles, 
 
 The **scenes** tab contains all 34 animated scenes from [ascii.rest](https://ascii.rest/), copied into this repository under its MIT license. Each scene fills the display; its edges may crop slightly to match the phone's aspect ratio. Tap to reveal controls, swipe to change scenes, or use **[all scenes]** to choose one. **[pause]** holds a still frame. Your last scene is saved locally on the phone. Scenes load only when selected and never request ascii.rest or any other website.
 
+## Screenshots
+
+Landscape screenshots of the actual interface using **demo data**: a generic `desktop` hostname, an NVIDIA GeForce RTX 5090, and fictional media. Readings are illustrative, not benchmarks or verification of a particular GPU. CPU temperature remains `n/a` without a supported sensor provider.
+
+**Hardware dashboard with the idle CRT companion**
+
+![Hardware dashboard with a monochrome idle face, Ryzen 7 9800X3D CPU, RTX 5090 GPU, RAM, VRAM, storage, and frame-rate tiles](docs/screenshots/dashboard.jpg)
+
+**Media controls alongside live statistics**
+
+![Media controller showing fictional Night Drive artwork, playback and seek controls beside the six hardware tiles](docs/screenshots/media.jpg)
+
+**Full-screen scenes — Alpine Dawn**
+
+![Alpine Dawn ASCII scene filling the display with mountains reflected in a lake](docs/screenshots/alpine-dawn.jpg)
+
+One of 34 bundled scenes from [ascii.rest](https://ascii.rest/), by bas3line (MIT). These are still captures; the app animates the scenes and companion and rolls changing readings.
+
 ## Media controller and companion
 
 The left third of the landscape dashboard shows media from Windows' System Media Transport Controls. The six monitoring tiles occupy the remaining two thirds. Spotify and browser players such as YouTube and YouTube Music work when they publish a Windows media session. No browser extension, account login, cloud request, or extra PC app is needed.
